@@ -59,7 +59,7 @@ char trial_password[6];
 int passwd_false = 0;
 
 void setup() {
-  saved_cards[0] = "F9 EC DE 2B";
+  //saved_cards[0] = "F9 EC DE 2B";
   num_card = 0;
   lcd.begin(16, 2);
 

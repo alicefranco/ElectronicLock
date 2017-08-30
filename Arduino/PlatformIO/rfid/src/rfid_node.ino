@@ -23,18 +23,24 @@ GND     = GND
 #define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
 #define TRAVA 15
 
-const char *ssid =  "Dermoestetica2";     // change according to your Network - cannot be longer than 32 characters!
-const char *pass =  "dermoaju2014se"; // change according to your Network
-const char *httpdestination = "http://httpbin.org/post"; //server
-String sala = "001A"; //room where the lock is placed
+const char *ssid =  "Dermo-WiFi";     // change according to your Network - cannot be longer than 32 characters!
+const char *pass =  "dermo7560"; // change according to your Network
+const char *httpdestination = "http://10.0.0.133";//"http://httpbin.org/post"; //server
+//String sala = "001A"; //room where the lock is placed
 
 
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
 LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
 
 int tr_dest = 1;
+int connected = 0;
+
+int num_card;
+String saved_cards[20];
 
 void setup() {
+  saved_cards[0] = "0F1E02B";
+  num_card = 0;
   Wire.begin(2,0);
   lcd.init();
   lcd.noBacklight();
@@ -64,23 +70,34 @@ void setup() {
     lcd.setCursor(0,0);
     lcd.print("Conectado.");
     delay(3000);
+    connected = 1;
   }
-
-  Serial.println(F("======================================================"));
-  Serial.println(F("Pronto para ler cartão UID: \n"));
-  mensagemInicial(); //Print init message
-  delay(3000);
+  if(connected == 1){
+    Serial.println(F("======================================================"));
+    Serial.println(F("Pronto para ler cartão UID: \n"));
+    mensagemInicial(); //Print init message
+    delay(3000);
+  }
+  else{
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Nao conectado.");
+    lcd.setCursor(0,1);
+    lcd.print("Tente novamente.");
+    delay(3000);
+    connected = 0;
+  }
 }
 
 void loop() {
 
   // Look for new cards
-  if ( ! mfrc522.PICC_IsNewCardPresent()) {
+  while ( ! mfrc522.PICC_IsNewCardPresent()) {
     delay(50);
     return;
   }
   // Select one of the cards
-  if ( ! mfrc522.PICC_ReadCardSerial()) {
+  while( ! mfrc522.PICC_ReadCardSerial()) {
     delay(50);
     return;
   }
@@ -88,6 +105,8 @@ void loop() {
   Serial.print(F("UID tag : "));
   String content = "";
   byte letter;
+  Serial.println("taglen");
+  Serial.println(mfrc522.uid.size);
   for (byte i = 0; i < mfrc522.uid.size; i++)
   {
     Serial.print(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " ");
@@ -96,32 +115,52 @@ void loop() {
     content.concat(String(mfrc522.uid.uidByte[i], HEX));
   }
   Serial.println();
-  Serial.print(F("Message : "));
+  Serial.println(F("Message : "));
   content.toUpperCase();
 
+
+  String card = content.substring(1);
+  Serial.println("card");
+  Serial.println(card);
+
+  char aux1[15] ;
+  char aux2[15] ;
+
+  saved_cards[0].toCharArray(aux1, 15);
+  card.toCharArray(aux2, 15);
+
+  for(int i = 0 ; i< 15; i++){
+    Serial.println("aux1[i]: ");
+    Serial.println(aux1[i]);
+    Serial.println("aux2[i]: ");
+    Serial.println(aux2[i]);
+  }
+
+  //unlock if any of the cards saved were used
+  int auth = 0; //acesso autorizado
+  for(int i = 0; i < num_card; i++){
+    if (saved_cards[i] == card )//compara cartões salvos com cartão lido
+    {
+      auth = 1;
+    }
+  }
+
   //authorized UIDs
-  if (content.substring(1) == "70 F1 E0 2B")
+  if (auth == 1)
   {
     int httpCode;
-    String nome = "Emerson";
     String stat;
     String message = "message";
-    String uid = "70 F1 E0 2B";
+    String uid = card;
     //Locked door, unlock it
     if (tr_dest == 1) {
-      httpCode = sendPOST(message);
       stat = "true";
-      message = createMsgJSON(nome, uid, stat);
+      message = createMsgJSON(uid, stat);
+      httpCode = sendPOST(message);
       if(httpCode == 200){
-        Serial.println(F("Acesso autorizado."));
-        Serial.println();
         tr_dest = 0; //door unlocked
         digitalWrite(TRAVA, HIGH);
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Ola usuario!");
-        lcd.setCursor(0, 1);
-        lcd.print("Entrada liberada");
+        mensagemEntradaLiberada();
         delay(3000);
         mensagemInicial();
       }
@@ -130,18 +169,12 @@ void loop() {
     //Unlocked door, lock it.
     else {
       stat = "false";
-      message = createMsgJSON(nome, uid, stat);
+      message = createMsgJSON(uid, stat);
       httpCode = sendPOST(message);
       if(httpCode == 200){
-        Serial.println(F("Porta travada."));
-        Serial.println();
         tr_dest = 1; //door locked
         digitalWrite(TRAVA, LOW);
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        //lcd.print("Tchau!");
-        lcd.setCursor(0, 0);
-        lcd.print("Porta travada.");
+        mensagemPortaTravada();
         delay(3000);
         mensagemInicial();
       }
@@ -150,10 +183,7 @@ void loop() {
 
   //not an authorized UID
   else {
-    Serial.println(F("Ação negada!"));
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Acao negada!");
+    mensagemAcaoNegada();
     delay(3000);
     mensagemInicial();
   }
@@ -185,7 +215,7 @@ int sendPOST(String message){
 
       HTTPClient http;    //Declare object of class HTTPClient
 
-      http.begin(httpdestination);
+      http.begin(httpdestination, 64165, "/api/registro_acessos");
       http.addHeader("Content-Type", "text/plain");  //Specify content-type header
 
       httpCode = http.POST(message);   //Send the request
@@ -204,13 +234,39 @@ int sendPOST(String message){
 }
 
 //method to create the Json formatted msg
-String createMsgJSON(String nome, String uid, String stat){
+String createMsgJSON(String uid, String stat){
   aJsonObject* root = aJson.createObject();
-  aJson.addStringToObject(root, "nome", nome.c_str());
-  aJson.addStringToObject(root, "uid", uid.c_str());
-  aJson.addStringToObject(root, "sala", sala.c_str());
-  aJson.addStringToObject(root, "status", stat.c_str());
+  //aJson.addStringToObject(root, "nome", nome.c_str());
+  aJson.addStringToObject(root, "RFID", uid.c_str());
+  aJson.addStringToObject(root, "Status", stat.c_str());
+  aJson.addNumberToObject(root, "Id_Local_Acesso", 1);
   String json_object = aJson.print(root);
   Serial.println(aJson.print(root));
   return json_object;
+}
+
+void mensagemEntradaLiberada(){
+  Serial.println("Entrada liberada.");
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Ola!");
+  lcd.setCursor(0, 1);
+  lcd.print("Entrada liberada");
+  delay(1000);
+}
+
+void mensagemPortaTravada(){
+  Serial.println("Porta travada.");
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Porta travada.");
+  delay(1000);
+}
+
+void mensagemAcaoNegada(){
+  Serial.println(F("Ação negada!"));
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Acao negada!");
+  delay(1000);
 }
