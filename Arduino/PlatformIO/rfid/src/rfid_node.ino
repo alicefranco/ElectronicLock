@@ -25,7 +25,7 @@ GND     = GND
 
 const char *ssid =  "Dermo-WiFi";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermo7560"; // change according to your Network
-const char *httpdestination = "http://10.0.0.133";//"http://httpbin.org/post"; //server
+const char *httpdestination = "http://10.0.0.126:80/clinicaapi/api/registro_acessos";//"http://httpbin.org/post"; //server
 //String sala = "001A"; //room where the lock is placed
 
 
@@ -39,8 +39,12 @@ int num_card;
 String saved_cards[20];
 
 void setup() {
-  saved_cards[0] = "0F1E02B";
-  num_card = 0;
+  //saved cards
+  num_card = 3;
+  saved_cards[0] = "70 F1 E0 2B";
+  saved_cards[1] = "F9 EC DE 2B";
+
+
   Wire.begin(2,0);
   lcd.init();
   lcd.noBacklight();
@@ -104,9 +108,6 @@ void loop() {
   //Show UID on serial monitor
   Serial.print(F("UID tag : "));
   String content = "";
-  byte letter;
-  Serial.println("taglen");
-  Serial.println(mfrc522.uid.size);
   for (byte i = 0; i < mfrc522.uid.size; i++)
   {
     Serial.print(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " ");
@@ -123,18 +124,11 @@ void loop() {
   Serial.println("card");
   Serial.println(card);
 
-  char aux1[15] ;
-  char aux2[15] ;
+  char aux1[11] ;
+  char aux2[11] ;
 
   saved_cards[0].toCharArray(aux1, 15);
   card.toCharArray(aux2, 15);
-
-  for(int i = 0 ; i< 15; i++){
-    Serial.println("aux1[i]: ");
-    Serial.println(aux1[i]);
-    Serial.println("aux2[i]: ");
-    Serial.println(aux2[i]);
-  }
 
   //unlock if any of the cards saved were used
   int auth = 0; //acesso autorizado
@@ -149,15 +143,15 @@ void loop() {
   if (auth == 1)
   {
     int httpCode;
-    String stat;
+    bool stat;
     String message = "message";
     String uid = card;
     //Locked door, unlock it
     if (tr_dest == 1) {
-      stat = "true";
+      stat = true;
       message = createMsgJSON(uid, stat);
       httpCode = sendPOST(message);
-      if(httpCode == 200){
+      if(httpCode == 201){
         tr_dest = 0; //door unlocked
         digitalWrite(TRAVA, HIGH);
         mensagemEntradaLiberada();
@@ -168,10 +162,10 @@ void loop() {
 
     //Unlocked door, lock it.
     else {
-      stat = "false";
+      stat = false;
       message = createMsgJSON(uid, stat);
       httpCode = sendPOST(message);
-      if(httpCode == 200){
+      if(httpCode == 201){
         tr_dest = 1; //door locked
         digitalWrite(TRAVA, LOW);
         mensagemPortaTravada();
@@ -190,12 +184,12 @@ void loop() {
 }
 
 // Helper routine to dump a byte array as hex values to Serial
-void dump_byte_array(byte *buffer, byte bufferSize) {
+/*void dump_byte_array(byte *buffer, byte bufferSize) {
   for (byte i = 0; i < bufferSize; i++) {
     Serial.print(buffer[i] < 0x10 ? " 0" : " ");
     Serial.print(buffer[i], HEX);
   }
-}
+}*/
 
 //init msg
 void mensagemInicial() {
@@ -215,8 +209,8 @@ int sendPOST(String message){
 
       HTTPClient http;    //Declare object of class HTTPClient
 
-      http.begin(httpdestination, 64165, "/api/registro_acessos");
-      http.addHeader("Content-Type", "text/plain");  //Specify content-type header
+      http.begin(httpdestination);
+      http.addHeader("Content-Type", "application/json");  //Specify content-type header
 
       httpCode = http.POST(message);   //Send the request
       String payload = http.getString();                  //Get the response payload
@@ -234,12 +228,12 @@ int sendPOST(String message){
 }
 
 //method to create the Json formatted msg
-String createMsgJSON(String uid, String stat){
+String createMsgJSON(String uid, bool stat){
   aJsonObject* root = aJson.createObject();
   //aJson.addStringToObject(root, "nome", nome.c_str());
   aJson.addStringToObject(root, "RFID", uid.c_str());
-  aJson.addStringToObject(root, "Status", stat.c_str());
-  aJson.addNumberToObject(root, "Id_Local_Acesso", 1);
+  aJson.addBooleanToObject(root, "Status", stat);
+  aJson.addNumberToObject(root, "Id_Local_Acesso", 2);
   String json_object = aJson.print(root);
   Serial.println(aJson.print(root));
   return json_object;
