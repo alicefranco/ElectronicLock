@@ -119,11 +119,6 @@
 </layers>
 <board>
 <plain>
-<text x="22.65" y="93.26" size="1.778" layer="1">power supply</text>
-<text x="114.15" y="93.26" size="1.778" layer="1">lock</text>
-<text x="16.65" y="88.76" size="1.778" layer="1">GND</text>
-<text x="120.15" y="90.26" size="1.778" layer="1">GND</text>
-<text x="120.15" y="85.76" size="1.778" layer="1">VCC</text>
 </plain>
 <libraries>
 <library name="ESP12E_DEVKIT">

@@ -25,7 +25,7 @@ GND     = GND
 
 const char *ssid =  "Dermo-WiFi";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermo7560"; // change according to your Network
-const char *httpdestination = "http://10.0.0.126:80/clinicaapi/api/registro_acessos";//"http://httpbin.org/post"; //server
+const char *httpdestination = "http://192.168.15.101:8081/token";//"http://httpbin.org/post"; //server
 //String sala = "001A"; //room where the lock is placed
 
 
@@ -37,6 +37,12 @@ int connected = 0;
 
 int num_card;
 String saved_cards[20];
+
+String grant_type = "password";
+String UserName = "sala2";
+String password = "@Sala2";
+
+aJsonObject* payload = aJson.createObject();
 
 void setup() {
   //saved cards
@@ -130,42 +136,37 @@ void loop() {
   saved_cards[0].toCharArray(aux1, 15);
   card.toCharArray(aux2, 15);
 
-  //unlock if any of the cards saved were used
-  int auth = 0; //acesso autorizado
-  for(int i = 0; i < num_card; i++){
-    if (saved_cards[i] == card )//compara cartões salvos com cartão lido
-    {
-      auth = 1;
-    }
-  }
+  int httpCode;
 
-  //authorized UIDs
-  if (auth == 1)
-  {
-    int httpCode;
-    bool stat;
-    String message = "message";
-    String uid = card;
-    //Locked door, unlock it
-    if (tr_dest == 1) {
-      stat = true;
-      message = createMsgJSON(uid, stat);
-      httpCode = sendPOST(message);
-      if(httpCode == 201){
+  bool stat = false;
+  String rfid = card;
+  String messageAuth = createForm();
+  httpCode = sendPOST("", messageAuth, false);
+
+
+ if(httpCode == 200){
+    String message = createMsgJSON(rfid, stat);
+    aJsonObject* token_ptr = aJson.createObject();
+    token_ptr = aJson.getObjectItem(payload, "access_token");
+    /*aJsonObject* token_type_ptr = aJson.getObjectItem(payload, "token_type");
+    String token = token_ptr->valuestring;
+    String token_type = token_type_ptr->valuestring;
+    String header = token_type + " " + token;
+    stat = !stat;
+    httpCode = sendPOST(header , message, true);
+    if(httpCode == 200){
+      saved_cards[num_card] = card;
+      num_card++;
+      //Locked door, unlock it
+      if (stat == true) {
         tr_dest = 0; //door unlocked
         digitalWrite(TRAVA, HIGH);
         mensagemEntradaLiberada();
         delay(3000);
         mensagemInicial();
       }
-    }
-
-    //Unlocked door, lock it.
-    else {
-      stat = false;
-      message = createMsgJSON(uid, stat);
-      httpCode = sendPOST(message);
-      if(httpCode == 201){
+      //Unlocked door, lock it.
+      else {
         tr_dest = 1; //door locked
         digitalWrite(TRAVA, LOW);
         mensagemPortaTravada();
@@ -173,24 +174,20 @@ void loop() {
         mensagemInicial();
       }
     }
+    else{
+      stat = !stat;
+      mensagemAcaoNegada();
+      delay(3000);
+      mensagemInicial();
+    }*/
   }
-
-  //not an authorized UID
-  else {
+  else{
+    stat = !stat;
     mensagemAcaoNegada();
     delay(3000);
     mensagemInicial();
   }
 }
-
-// Helper routine to dump a byte array as hex values to Serial
-/*void dump_byte_array(byte *buffer, byte bufferSize) {
-  for (byte i = 0; i < bufferSize; i++) {
-    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
-    Serial.print(buffer[i], HEX);
-  }
-}*/
-
 //init msg
 void mensagemInicial() {
   Serial.println(F("Aproxime seu cartão"));
@@ -203,20 +200,27 @@ void mensagemInicial() {
 }
 
 //send to server
-int sendPOST(String message){
+int sendPOST(String header, String body, bool auth){
   int httpCode;
   if(WiFi.status()== WL_CONNECTED){   //Check WiFi connection status
 
       HTTPClient http;    //Declare object of class HTTPClient
 
       http.begin(httpdestination);
-      http.addHeader("Content-Type", "application/json");  //Specify content-type header
+      if(auth) http.addHeader("Authorization", header);
+      http.addHeader("Content-Type", "application/x-www-form-urlencoded");  //Specify content-type header
 
-      httpCode = http.POST(message);   //Send the request
-      String payload = http.getString();                  //Get the response payload
+
+      httpCode = http.POST(body);   //Send the request
+      String pl = http.getString();                  //Get the response payload
+      char pl2[1000];
+      pl.toCharArray(pl2, 1000);
+      payload = aJson.parse(pl2);
+
 
       Serial.println(httpCode);   //Print HTTP return code
-      Serial.println(payload);    //Print request response payload
+      Serial.println(pl);    //Print request response payload
+
 
       http.end();  //Close connection
 
@@ -227,11 +231,32 @@ int sendPOST(String message){
     return httpCode;
 }
 
-//method to create the Json formatted msg
-String createMsgJSON(String uid, bool stat){
+String createForm(){
+  String form = "grant_type=" + grant_type + "&"
+    + "UserName=" + UserName + "&"
+    + "password=" + password;
+  return form;
+}
+
+
+
+
+String createAuthJSON(){
   aJsonObject* root = aJson.createObject();
   //aJson.addStringToObject(root, "nome", nome.c_str());
-  aJson.addStringToObject(root, "RFID", uid.c_str());
+  aJson.addStringToObject(root, "grant_type", grant_type.c_str());
+  aJson.addStringToObject(root, "UserName", UserName.c_str());
+  aJson.addStringToObject(root, "password", password.c_str());
+  String json_object = aJson.print(root);
+  Serial.println(aJson.print(root));
+  return json_object;
+}
+
+//method to create the Json formatted msg
+String createMsgJSON(String rfid, bool stat){
+  aJsonObject* root = aJson.createObject();
+  //aJson.addStringToObject(root, "nome", nome.c_str());
+  aJson.addStringToObject(root, "RFID", rfid.c_str());
   aJson.addBooleanToObject(root, "Status", stat);
   aJson.addNumberToObject(root, "Id_Local_Acesso", 2);
   String json_object = aJson.print(root);

@@ -133,36 +133,36 @@
 <wire x1="-7.62" y1="24.13" x2="7.62" y2="24.13" width="0.2032" layer="51"/>
 <wire x1="7.62" y1="24.13" x2="12.7" y2="24.13" width="0.2032" layer="51"/>
 <wire x1="12.7" y1="24.13" x2="12.7" y2="-24.13" width="0.2032" layer="51"/>
-<pad name="AD0" x="-11.43" y="17.78" drill="0.8" diameter="1.9304"/>
-<pad name="RSV@0" x="-11.43" y="15.24" drill="0.8" diameter="1.9304"/>
-<pad name="RSV@1" x="-11.43" y="12.7" drill="0.8" diameter="1.9304"/>
-<pad name="SD3" x="-11.43" y="10.16" drill="0.8" diameter="1.9304"/>
-<pad name="SD2" x="-11.43" y="7.62" drill="0.8" diameter="1.9304"/>
-<pad name="SD1" x="-11.43" y="5.08" drill="0.8" diameter="1.9304"/>
-<pad name="CMD" x="-11.43" y="2.54" drill="0.8" diameter="1.9304"/>
-<pad name="SD0" x="-11.43" y="0" drill="0.8" diameter="1.9304"/>
-<pad name="CLK" x="-11.43" y="-2.54" drill="0.8" diameter="1.9304"/>
-<pad name="GND@0" x="-11.43" y="-5.08" drill="0.8" diameter="1.9304"/>
-<pad name="3V3@0" x="-11.43" y="-7.62" drill="0.8" diameter="1.9304"/>
-<pad name="EN" x="-11.43" y="-10.16" drill="0.8" diameter="1.9304"/>
-<pad name="RST" x="-11.43" y="-12.7" drill="0.8" diameter="1.9304"/>
-<pad name="GND@1" x="-11.43" y="-15.24" drill="0.8" diameter="1.9304"/>
-<pad name="VIN" x="-11.43" y="-17.78" drill="0.8" diameter="1.9304"/>
-<pad name="D0" x="11.43" y="17.78" drill="0.8" diameter="1.9304"/>
-<pad name="D1" x="11.43" y="15.24" drill="0.8" diameter="1.9304"/>
-<pad name="D2" x="11.43" y="12.7" drill="0.8" diameter="1.9304"/>
-<pad name="D3" x="11.43" y="10.16" drill="0.8" diameter="1.9304"/>
-<pad name="D4" x="11.43" y="7.62" drill="0.8" diameter="1.9304"/>
-<pad name="3V3@1" x="11.43" y="5.08" drill="0.8" diameter="1.9304"/>
-<pad name="GND@2" x="11.43" y="2.54" drill="0.8" diameter="1.9304"/>
-<pad name="D5" x="11.43" y="0" drill="0.8" diameter="1.9304"/>
-<pad name="D6" x="11.43" y="-2.54" drill="0.8" diameter="1.9304"/>
-<pad name="D7" x="11.43" y="-5.08" drill="0.8" diameter="1.9304"/>
-<pad name="D8" x="11.43" y="-7.62" drill="0.8" diameter="1.9304"/>
-<pad name="RX" x="11.43" y="-10.16" drill="0.8" diameter="1.9304"/>
-<pad name="TX" x="11.43" y="-12.7" drill="0.8" diameter="1.9304"/>
-<pad name="GND@3" x="11.43" y="-15.24" drill="0.8" diameter="1.9304"/>
-<pad name="3V3@2" x="11.43" y="-17.78" drill="0.8" diameter="1.9304"/>
+<pad name="AD0" x="-11.43" y="17.78" drill="0.8" diameter="2.1844"/>
+<pad name="RSV@0" x="-11.43" y="15.24" drill="0.8" diameter="2.1844"/>
+<pad name="RSV@1" x="-11.43" y="12.7" drill="0.8" diameter="2.1844"/>
+<pad name="SD3" x="-11.43" y="10.16" drill="0.8" diameter="2.1844"/>
+<pad name="SD2" x="-11.43" y="7.62" drill="0.8" diameter="2.1844"/>
+<pad name="SD1" x="-11.43" y="5.08" drill="0.8" diameter="2.1844"/>
+<pad name="CMD" x="-11.43" y="2.54" drill="0.8" diameter="2.1844"/>
+<pad name="SD0" x="-11.43" y="0" drill="0.8" diameter="2.1844"/>
+<pad name="CLK" x="-11.43" y="-2.54" drill="0.8" diameter="2.1844"/>
+<pad name="GND@0" x="-11.43" y="-5.08" drill="0.8" diameter="2.1844"/>
+<pad name="3V3@0" x="-11.43" y="-7.62" drill="0.8" diameter="2.1844"/>
+<pad name="EN" x="-11.43" y="-10.16" drill="0.8" diameter="2.1844"/>
+<pad name="RST" x="-11.43" y="-12.7" drill="0.8" diameter="2.1844"/>
+<pad name="GND@1" x="-11.43" y="-15.24" drill="0.8" diameter="2.1844"/>
+<pad name="VIN" x="-11.43" y="-17.78" drill="0.8" diameter="2.1844"/>
+<pad name="D0" x="11.43" y="17.78" drill="0.8" diameter="2.1844"/>
+<pad name="D1" x="11.43" y="15.24" drill="0.8" diameter="2.1844"/>
+<pad name="D2" x="11.43" y="12.7" drill="0.8" diameter="2.1844"/>
+<pad name="D3" x="11.43" y="10.16" drill="0.8" diameter="2.1844"/>
+<pad name="D4" x="11.43" y="7.62" drill="0.8" diameter="2.1844"/>
+<pad name="3V3@1" x="11.43" y="5.08" drill="0.8" diameter="2.1844"/>
+<pad name="GND@2" x="11.43" y="2.54" drill="0.8" diameter="2.1844"/>
+<pad name="D5" x="11.43" y="0" drill="0.8" diameter="2.1844"/>
+<pad name="D6" x="11.43" y="-2.54" drill="0.8" diameter="2.1844"/>
+<pad name="D7" x="11.43" y="-5.08" drill="0.8" diameter="2.1844"/>
+<pad name="D8" x="11.43" y="-7.62" drill="0.8" diameter="2.1844"/>
+<pad name="RX" x="11.43" y="-10.16" drill="0.8" diameter="2.1844"/>
+<pad name="TX" x="11.43" y="-12.7" drill="0.8" diameter="2.1844" rot="R90"/>
+<pad name="GND@3" x="11.43" y="-15.24" drill="0.8" diameter="2.1844"/>
+<pad name="3V3@2" x="11.43" y="-17.78" drill="0.8" diameter="2.1844"/>
 <wire x1="-7.62" y1="24.13" x2="-7.62" y2="1.27" width="0.2032" layer="51"/>
 <wire x1="-7.62" y1="1.27" x2="7.62" y2="1.27" width="0.2032" layer="51"/>
 <wire x1="7.62" y1="1.27" x2="7.62" y2="24.13" width="0.2032" layer="51"/>
