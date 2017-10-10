@@ -2,6 +2,7 @@
 Many thanks to nikxha from the ESP8266 forum
 */
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <SPI.h>
 #include "MFRC522.h"
@@ -25,7 +26,9 @@ GND     = GND
 
 const char *ssid =  "Dermo-WiFi";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermo7560"; // change according to your Network
-const char *httpdestination = "http://192.168.15.101:8081/token";//"http://httpbin.org/post"; //server
+const char *httpdestinationauth = "http://192.168.15.101:8081/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://192.168.15.101:8081/api/cartoes_RFID/verifyrfid";
+
 //String sala = "001A"; //room where the lock is placed
 
 
@@ -42,7 +45,11 @@ String grant_type = "password";
 String UserName = "sala2";
 String password = "@Sala2";
 
-aJsonObject* payload = aJson.createObject();
+String ID_Local_Acesso = "2";
+String stat = "false";
+
+StaticJsonBuffer<1000> b;
+JsonObject* payload = &(b.createObject());
 
 void setup() {
   //saved cards
@@ -61,7 +68,7 @@ void setup() {
 
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
-  Serial.println(F("Booting...."));
+  Serial.println(F("Conectando...."));
 
   SPI.begin();           // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
@@ -138,27 +145,35 @@ void loop() {
 
   int httpCode;
 
-  bool stat = false;
+
   String rfid = card;
   String messageAuth = createForm();
-  httpCode = sendPOST("", messageAuth, false);
+  httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
 
 
  if(httpCode == 200){
-    String message = createMsgJSON(rfid, stat);
-    aJsonObject* token_ptr = aJson.createObject();
-    token_ptr = aJson.getObjectItem(payload, "access_token");
-    /*aJsonObject* token_type_ptr = aJson.getObjectItem(payload, "token_type");
-    String token = token_ptr->valuestring;
-    String token_type = token_type_ptr->valuestring;
-    String header = token_type + " " + token;
-    stat = !stat;
-    httpCode = sendPOST(header , message, true);
+    String message = createMsgUrlEnc(rfid, stat);
+    String access_token = (*payload)["access_token"];
+    String token_type = (*payload)["token_type"];
+    //aJsonObject* token_ptr = aJson.getObjectItem(payload, "access_token");
+    //aJsonObject* token_type_ptr = aJson.getObjectItem(payload, "token_type");
+    //String token = token_ptr->valuestring;
+    //String token_type = token_type_ptr->valuestring;
+    String header = token_type + " " + access_token;
+    if(stat == "true"){
+      stat = "false";
+    }
+    else if(stat == "false"){
+      stat = "true";
+    }
+
+
+    httpCode = sendPOST(httpdestination, header, message, true);
     if(httpCode == 200){
       saved_cards[num_card] = card;
       num_card++;
       //Locked door, unlock it
-      if (stat == true) {
+      if (stat == "true") {
         tr_dest = 0; //door unlocked
         digitalWrite(TRAVA, HIGH);
         mensagemEntradaLiberada();
@@ -166,7 +181,7 @@ void loop() {
         mensagemInicial();
       }
       //Unlocked door, lock it.
-      else {
+      else if(stat == "false") {
         tr_dest = 1; //door locked
         digitalWrite(TRAVA, LOW);
         mensagemPortaTravada();
@@ -175,11 +190,12 @@ void loop() {
       }
     }
     else{
-      stat = !stat;
+      if(stat == "true") stat = "false";
+      else if(stat == "false") stat = "true";
       mensagemAcaoNegada();
       delay(3000);
       mensagemInicial();
-    }*/
+    }//*/
   }
   else{
     stat = !stat;
@@ -188,6 +204,8 @@ void loop() {
     mensagemInicial();
   }
 }
+
+
 //init msg
 void mensagemInicial() {
   Serial.println(F("Aproxime seu cartão"));
@@ -200,7 +218,7 @@ void mensagemInicial() {
 }
 
 //send to server
-int sendPOST(String header, String body, bool auth){
+int sendPOST(String httpdestination, String header, String body, bool auth){
   int httpCode;
   if(WiFi.status()== WL_CONNECTED){   //Check WiFi connection status
 
@@ -215,8 +233,13 @@ int sendPOST(String header, String body, bool auth){
       String pl = http.getString();                  //Get the response payload
       char pl2[1000];
       pl.toCharArray(pl2, 1000);
-      payload = aJson.parse(pl2);
 
+
+      JsonObject* x;
+      StaticJsonBuffer<1000> JSONBuffer;   //Memory pool
+      x = &(JSONBuffer.parseObject(pl2)); //Parse message
+
+      payload = x;
 
       Serial.println(httpCode);   //Print HTTP return code
       Serial.println(pl);    //Print request response payload
@@ -238,10 +261,19 @@ String createForm(){
   return form;
 }
 
+String createMsgUrlEnc(String rfid, String stat){
+  String form = "RFID=" + rfid + "&"
+    + "Status=" + stat + "&"
+    +"ID_Local_Acesso=" + ID_Local_Acesso;
+  Serial.println("form");
+  Serial.println(form);
+  return form;
+}
 
 
 
-String createAuthJSON(){
+
+/*String createAuthJSON(){
   aJsonObject* root = aJson.createObject();
   //aJson.addStringToObject(root, "nome", nome.c_str());
   aJson.addStringToObject(root, "grant_type", grant_type.c_str());
@@ -262,7 +294,7 @@ String createMsgJSON(String rfid, bool stat){
   String json_object = aJson.print(root);
   Serial.println(aJson.print(root));
   return json_object;
-}
+}*/
 
 void mensagemEntradaLiberada(){
   Serial.println("Entrada liberada.");
