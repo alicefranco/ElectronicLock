@@ -26,8 +26,8 @@ GND     = GND
 
 const char *ssid =  "Dermo-WiFi";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermo7560"; // change according to your Network
-const char *httpdestinationauth = "http://192.168.15.101:8081/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://192.168.15.101:8081/api/cartoes_RFID/verifyrfid";
+const char *httpdestinationauth = "http://192.168.0.114:8081/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://192.168.0.114:8081/api/ponto_funcionarios";
 
 //String sala = "001A"; //room where the lock is placed
 
@@ -42,11 +42,8 @@ int num_card;
 String saved_cards[20];
 
 String grant_type = "password";
-String UserName = "sala2";
-String password = "@Sala2";
-
-String ID_Local_Acesso = "2";
-String stat = "false";
+String UserName = "pontodermo";
+String password = "@Pontodermo1";
 
 StaticJsonBuffer<1000> b;
 JsonObject* payload = &(b.createObject());
@@ -69,6 +66,9 @@ void setup() {
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
   Serial.println(F("Conectando...."));
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Conectando...");
 
   SPI.begin();           // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
@@ -152,53 +152,29 @@ void loop() {
 
 
  if(httpCode == 200){
-    String message = createMsgUrlEnc(rfid, stat);
+    String message = createMsgUrlEnc(rfid);
     String access_token = (*payload)["access_token"];
     String token_type = (*payload)["token_type"];
-    //aJsonObject* token_ptr = aJson.getObjectItem(payload, "access_token");
-    //aJsonObject* token_type_ptr = aJson.getObjectItem(payload, "token_type");
-    //String token = token_ptr->valuestring;
-    //String token_type = token_type_ptr->valuestring;
     String header = token_type + " " + access_token;
-    if(stat == "true"){
-      stat = "false";
-    }
-    else if(stat == "false"){
-      stat = "true";
-    }
-
 
     httpCode = sendPOST(httpdestination, header, message, true);
     if(httpCode == 200){
       saved_cards[num_card] = card;
       num_card++;
-      //Locked door, unlock it
-      if (stat == "true") {
-        tr_dest = 0; //door unlocked
-        digitalWrite(TRAVA, HIGH);
-        mensagemEntradaLiberada();
-        delay(3000);
-        mensagemInicial();
-      }
-      //Unlocked door, lock it.
-      else if(stat == "false") {
-        tr_dest = 1; //door locked
-        digitalWrite(TRAVA, LOW);
-        mensagemPortaTravada();
-        delay(3000);
-        mensagemInicial();
-      }
+
+      //registro feito com sucesso
+      digitalWrite(TRAVA, HIGH);
+      mensagemRegistro();
+      delay(3000);
+      mensagemInicial();
     }
     else{
-      if(stat == "true") stat = "false";
-      else if(stat == "false") stat = "true";
       mensagemAcaoNegada();
       delay(3000);
       mensagemInicial();
-    }//*/
+    }
   }
   else{
-    stat = !stat;
     mensagemAcaoNegada();
     delay(3000);
     mensagemInicial();
@@ -261,56 +237,17 @@ String createForm(){
   return form;
 }
 
-String createMsgUrlEnc(String rfid, String stat){
-  String form = "RFID=" + rfid + "&"
-    + "Status=" + stat + "&"
-    +"ID_Local_Acesso=" + ID_Local_Acesso;
-  Serial.println("form");
-  Serial.println(form);
+String createMsgUrlEnc(String rfid){
+  String form = "RFID=" + rfid;
   return form;
 }
 
 
-
-
-/*String createAuthJSON(){
-  aJsonObject* root = aJson.createObject();
-  //aJson.addStringToObject(root, "nome", nome.c_str());
-  aJson.addStringToObject(root, "grant_type", grant_type.c_str());
-  aJson.addStringToObject(root, "UserName", UserName.c_str());
-  aJson.addStringToObject(root, "password", password.c_str());
-  String json_object = aJson.print(root);
-  Serial.println(aJson.print(root));
-  return json_object;
-}
-
-//method to create the Json formatted msg
-String createMsgJSON(String rfid, bool stat){
-  aJsonObject* root = aJson.createObject();
-  //aJson.addStringToObject(root, "nome", nome.c_str());
-  aJson.addStringToObject(root, "RFID", rfid.c_str());
-  aJson.addBooleanToObject(root, "Status", stat);
-  aJson.addNumberToObject(root, "Id_Local_Acesso", 2);
-  String json_object = aJson.print(root);
-  Serial.println(aJson.print(root));
-  return json_object;
-}*/
-
-void mensagemEntradaLiberada(){
-  Serial.println("Entrada liberada.");
+void mensagemRegistro(){
+  Serial.println("Ola");
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Ola!");
-  lcd.setCursor(0, 1);
-  lcd.print("Entrada liberada");
-  delay(1000);
-}
-
-void mensagemPortaTravada(){
-  Serial.println("Porta travada.");
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Porta travada.");
+  lcd.print("Ola.");
   delay(1000);
 }
 
