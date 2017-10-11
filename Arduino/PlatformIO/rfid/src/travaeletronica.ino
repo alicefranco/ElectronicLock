@@ -26,8 +26,8 @@ GND     = GND
 
 const char *ssid =  "Dermo-WiFi";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermo7560"; // change according to your Network
-const char *httpdestinationauth = "http://192.168.15.101:8081/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://192.168.15.101:8081/api/cartoes_RFID/verifyrfid";
+const char *httpdestinationauth = "http://192.168.15.134:8081/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://192.168.15.134:8081/api/cartoes_RFID/verifyrfid";
 
 //String sala = "001A"; //room where the lock is placed
 
@@ -197,8 +197,12 @@ void loop() {
       mensagemInicial();
     }//*/
   }
+  else if(httpCode = 403){
+    mensagemCartaoNaoAut();
+    delay(3000);
+    mensagemInicial();
+  }
   else{
-    stat = !stat;
     mensagemAcaoNegada();
     delay(3000);
     mensagemInicial();
@@ -265,36 +269,9 @@ String createMsgUrlEnc(String rfid, String stat){
   String form = "RFID=" + rfid + "&"
     + "Status=" + stat + "&"
     +"ID_Local_Acesso=" + ID_Local_Acesso;
-  Serial.println("form");
-  Serial.println(form);
   return form;
 }
 
-
-
-
-/*String createAuthJSON(){
-  aJsonObject* root = aJson.createObject();
-  //aJson.addStringToObject(root, "nome", nome.c_str());
-  aJson.addStringToObject(root, "grant_type", grant_type.c_str());
-  aJson.addStringToObject(root, "UserName", UserName.c_str());
-  aJson.addStringToObject(root, "password", password.c_str());
-  String json_object = aJson.print(root);
-  Serial.println(aJson.print(root));
-  return json_object;
-}
-
-//method to create the Json formatted msg
-String createMsgJSON(String rfid, bool stat){
-  aJsonObject* root = aJson.createObject();
-  //aJson.addStringToObject(root, "nome", nome.c_str());
-  aJson.addStringToObject(root, "RFID", rfid.c_str());
-  aJson.addBooleanToObject(root, "Status", stat);
-  aJson.addNumberToObject(root, "Id_Local_Acesso", 2);
-  String json_object = aJson.print(root);
-  Serial.println(aJson.print(root));
-  return json_object;
-}*/
 
 void mensagemEntradaLiberada(){
   Serial.println("Entrada liberada.");
@@ -319,5 +296,15 @@ void mensagemAcaoNegada(){
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Acao negada!");
+  delay(1000);
+}
+
+void mensagemCartaoNaoAut(){
+  Serial.println(F("Cartão não autorizado!"));
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Cartao nao");
+  lcd.setCursor(0, 1);
+  lcd.print("autorizado.");
   delay(1000);
 }
