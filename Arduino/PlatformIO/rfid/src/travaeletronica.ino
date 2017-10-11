@@ -197,7 +197,7 @@ void loop() {
       mensagemInicial();
     }//*/
   }
-  else if(httpCode = 403){
+  else if(httpCode == 403){
     mensagemCartaoNaoAut();
     delay(3000);
     mensagemInicial();
