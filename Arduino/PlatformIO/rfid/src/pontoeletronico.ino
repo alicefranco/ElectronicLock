@@ -27,7 +27,7 @@ GND     = GND
 const char *ssid =  "Dermo-WiFi";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermo7560"; // change according to your Network
 const char *httpdestinationauth = "http://192.168.15.134:8081/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://192.168.15.134:8081/api/cartoes_RFID/verifyrfid";
+const char *httpdestination = "http://192.168.15.134:8081/api/ponto_funcionarios";
 
 //String sala = "001A"; //room where the lock is placed
 
@@ -42,11 +42,9 @@ int num_card;
 String saved_cards[20];
 
 String grant_type = "password";
-String UserName = "sala2";
-String password = "@Sala2";
+String UserName = "pontodermo";
+String password = "@Pontodermo1";
 
-String ID_Local_Acesso = "2";
-String stat = "false";
 
 StaticJsonBuffer<1000> b;
 JsonObject* payload = &(b.createObject());
@@ -68,7 +66,7 @@ void setup() {
 
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
-  Serial.println(F("Conectando...."));
+  mensagemConectando();
 
   SPI.begin();           // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
@@ -82,11 +80,7 @@ void setup() {
   }
   if (WiFi.status() == WL_CONNECTED) {
 
-    Serial.println(F("WiFi conectado."));
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("Conectado.");
-    delay(3000);
+    mensagemConectado();
     connected = 1;
   }
   if(connected == 1){
@@ -96,12 +90,7 @@ void setup() {
     delay(3000);
   }
   else{
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("Nao conectado.");
-    lcd.setCursor(0,1);
-    lcd.print("Tente novamente.");
-    delay(3000);
+    mensagemNaoConectado();
     connected = 0;
   }
 }
@@ -152,53 +141,31 @@ void loop() {
 
 
  if(httpCode == 200){
-    String message = createMsgUrlEnc(rfid, stat);
+    String message = createMsgUrlEnc(rfid);
     String access_token = (*payload)["access_token"];
     String token_type = (*payload)["token_type"];
-    //aJsonObject* token_ptr = aJson.getObjectItem(payload, "access_token");
-    //aJsonObject* token_type_ptr = aJson.getObjectItem(payload, "token_type");
-    //String token = token_ptr->valuestring;
-    //String token_type = token_type_ptr->valuestring;
-    String header = token_type + " " + access_token;
-    if(stat == "true"){
-      stat = "false";
-    }
-    else if(stat == "false"){
-      stat = "true";
-    }
 
+    String header = token_type + " " + access_token;
 
     httpCode = sendPOST(httpdestination, header, message, true);
-    if(httpCode == 200){
+    if(httpCode == 201){
+      String data = (*payload)["data"];
+      Serial.println(data);
+
       saved_cards[num_card] = card;
       num_card++;
-      //Locked door, unlock it
-      if (stat == "true") {
-        tr_dest = 0; //door unlocked
-        digitalWrite(TRAVA, HIGH);
-        mensagemEntradaLiberada();
-        delay(3000);
-        mensagemInicial();
-      }
-      //Unlocked door, lock it.
-      else if(stat == "false") {
-        tr_dest = 1; //door locked
-        digitalWrite(TRAVA, LOW);
-        mensagemPortaTravada();
-        delay(3000);
-        mensagemInicial();
-      }
+      mensagemRegistro();
+      delay(3000);
+      mensagemInicial();
     }
     else{
-      if(stat == "true") stat = "false";
-      else if(stat == "false") stat = "true";
       mensagemAcaoNegada();
       delay(3000);
       mensagemInicial();
-    }//*/
+    }
   }
-  else if(httpCode = 403){
-    mensagemCartaoNaoAut();
+  else if(httpCode == 403){
+    mensagemFuncionarioNaoExiste();
     delay(3000);
     mensagemInicial();
   }
@@ -218,7 +185,6 @@ void mensagemInicial() {
   lcd.print("Aproxime seu");
   lcd.setCursor(0, 1);
   lcd.print("cartao do leitor");
-
 }
 
 //send to server
@@ -265,10 +231,8 @@ String createForm(){
   return form;
 }
 
-String createMsgUrlEnc(String rfid, String stat){
-  String form = "RFID=" + rfid + "&"
-    + "Status=" + stat + "&"
-    +"ID_Local_Acesso=" + ID_Local_Acesso;
+String createMsgUrlEnc(String rfid){
+  String form = "RFID=" + rfid;
   return form;
 }
 
@@ -299,12 +263,44 @@ void mensagemAcaoNegada(){
   delay(1000);
 }
 
-void mensagemCartaoNaoAut(){
-  Serial.println(F("Cartão não autorizado!"));
+void mensagemFuncionarioNaoExiste(){
+  Serial.println(F("Funcionário não existe!"));
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Cartao nao");
+  lcd.print("Funcionario");
   lcd.setCursor(0, 1);
-  lcd.print("autorizado.");
+  lcd.print("nao existe.");
   delay(1000);
+}
+
+void mensagemConectando(){
+  Serial.println(F("Conectando...."));
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Conectando.");
+}
+
+void mensagemConectado(){
+  Serial.println(F("Conectado."));
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Conectado.");
+}
+
+void mensagemNaoConectado(){
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Nao conectado.");
+  lcd.setCursor(0,1);
+  lcd.print("Tente novamente.");
+  delay(3000);
+}
+
+void mensagemRegistro(){
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Ola");
+  lcd.setCursor(0,1);
+  lcd.print("");
+  delay(3000);
 }
