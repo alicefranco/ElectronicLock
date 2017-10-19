@@ -24,10 +24,10 @@ GND     = GND
 #define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
 #define TRAVA 15
 
-const char *ssid =  "Dermo-WiFi";     // change according to your Network - cannot be longer than 32 characters!
-const char *pass =  "dermo7560"; // change according to your Network
-const char *httpdestinationauth = "http://192.168.15.134:8081/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://192.168.15.134:8081/api/cartoes_RFID/verifyrfid";
+const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
+const char *pass =  "dermoaju2017se"; // change according to your Network
+const char *httpdestinationauth = "http://192.168.15.20:8081/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://192.168.15.20:8081/api/cartoes_RFID/verifyrfid";
 
 //String sala = "001A"; //room where the lock is placed
 
@@ -69,6 +69,9 @@ void setup() {
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
   Serial.println(F("Conectando...."));
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Conectando...");
 
   SPI.begin();           // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
@@ -169,7 +172,7 @@ void loop() {
 
 
     httpCode = sendPOST(httpdestination, header, message, true);
-    if(httpCode == 200){
+    if(httpCode == 201){
       saved_cards[num_card] = card;
       num_card++;
       //Locked door, unlock it
@@ -189,6 +192,13 @@ void loop() {
         mensagemInicial();
       }
     }
+    else if(httpCode == 403){
+      if(stat == "true") stat = "false";
+      else if(stat == "false") stat = "true";
+      mensagemCartaoNaoAut();
+      delay(3000);
+      mensagemInicial();
+    }
     else{
       if(stat == "true") stat = "false";
       else if(stat == "false") stat = "true";
@@ -196,11 +206,6 @@ void loop() {
       delay(3000);
       mensagemInicial();
     }//*/
-  }
-  else if(httpCode == 403){
-    mensagemCartaoNaoAut();
-    delay(3000);
-    mensagemInicial();
   }
   else{
     mensagemAcaoNegada();
@@ -218,7 +223,6 @@ void mensagemInicial() {
   lcd.print("Aproxime seu");
   lcd.setCursor(0, 1);
   lcd.print("cartao do leitor");
-
 }
 
 //send to server
