@@ -160,7 +160,7 @@ void loop() {
       delay(3000);
       mensagemInicial();
     }
-    else if(httpCode == 500){
+    else if(httpCode == 403){
       mensagemFuncionarioNaoExiste();
       delay(3000);
       mensagemInicial();
