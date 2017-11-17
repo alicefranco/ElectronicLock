@@ -1,3 +1,4 @@
+
 /*
 Many thanks to nikxha from the ESP8266 forum
 */
@@ -24,10 +25,10 @@ GND     = GND
 #define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
 #define TRAVA 15
 
-const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
-const char *pass = "dermoaju2017se"; // change according to your Network
-const char *httpdestinationauth = "http://192.168.15.20:8081/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://192.168.15.20:8081/api/ponto_funcionarios";
+const char *ssid =  "APPis";     // change according to your Network - cannot be longer than 32 characters!
+const char *pass = "appis@2017"; // change according to your Network
+const char *httpdestinationauth = "http://192.168.0.105:8081/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://192.168.0.105:8081/api/ponto_funcionarios";
 
 //String sala = "001A"; //room where the lock is placed
 
@@ -42,8 +43,8 @@ int num_card;
 String saved_cards[20];
 
 String grant_type = "password";
-String UserName = "pontodermo";
-String password = "@Pontodermo1";
+String UserName = "PontoDermo";
+String password = "@PontoDermo1";
 
 
 StaticJsonBuffer<1000> b;
@@ -58,7 +59,9 @@ void setup() {
 
   Wire.begin(2,0);
   lcd.init();
-  lcd.noBacklight();
+  //lcd.noBacklight();
+  lcd.backlight();
+
 
   pinMode(TRAVA, OUTPUT); //Initiate lock
   digitalWrite(TRAVA, LOW); //set locked( by default
@@ -73,11 +76,13 @@ void setup() {
 
   WiFi.begin(ssid, pass); // Initialize wifi connection
   int retries = 0;
-  while ((WiFi.status() != WL_CONNECTED) && (retries < 100)) {
+
+  while ((WiFi.status() != WL_CONNECTED) && (retries < 5000)) {
     retries++;
     delay(500);
     Serial.print(".");
   }
+
   if (WiFi.status() == WL_CONNECTED) {
 
     mensagemConectado();
@@ -160,19 +165,27 @@ void loop() {
       delay(3000);
       mensagemInicial();
     }
-    else if(httpCode == 403){
+    else if(httpCode == 403 && httpCode == 404){
       mensagemFuncionarioNaoExiste();
       delay(3000);
       mensagemInicial();
     }
     else{
       mensagemAcaoNegada();
+      lcd.setCursor(0,1);
+      lcd.print("2");
+      lcd.setCursor(3, 1);
+      lcd.print(httpCode);
       delay(3000);
       mensagemInicial();
     }
   }
   else{
     mensagemAcaoNegada();
+    lcd.setCursor(0,1);
+    lcd.print("1");
+    lcd.setCursor(3, 1);
+    lcd.print(httpCode);
     delay(3000);
     mensagemInicial();
   }
