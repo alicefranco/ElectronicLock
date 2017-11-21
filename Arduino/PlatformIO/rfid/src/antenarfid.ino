@@ -96,7 +96,6 @@ void setup() {
 void loop() {
 
   if(serialArtificial.available() > 0 ){
-    Serial.print("\n");
     serialArtificial.readBytes(aux, 14);
     delay(250);
 
@@ -124,14 +123,7 @@ void loop() {
       card[14] = 0;
     }
     serialArtificial.flush();
-    //delay(3000);
-
-    for(int i = 0; i < 15; i++){
-      Serial.print(card[i], HEX);
-      Serial.print(" ");
-    }
-    Serial.print("\n");
-    mensagemInicial();
+    delay(1000);
 
     int httpCode;
     String rfid;
