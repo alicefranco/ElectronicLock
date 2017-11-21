@@ -9,31 +9,27 @@ Many thanks to nikxha from the ESP8266 forum
 #include <ESP8266HTTPClient.h>
 #include <aJSON.h>
 #include <LiquidCrystal_I2C.h>
+#include <SoftwareSerial.h>
 
-/* wiring the MFRC522 to ESP8266 (ESP-12)
-RST     = GPIO5
-SDA(SS) = GPIO4
-MOSI    = GPIO13
-MISO    = GPIO12
-SCK     = GPIO14
-GND     = GND
-3.3V    = 3.3V
-*/
 
-#define RST_PIN  5  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
-#define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
+//#define RST_PIN  5  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
+//#define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
 #define TRAVA 15
 
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermoaju2017se"; // change according to your Network
-const char *httpdestinationauth = "http://192.168.15.20:8081/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://192.168.15.20:8081/api/cartoes_RFID/verifyrfid";
-
-//String sala = "001A"; //room where the lock is placed
+const char *httpdestinationauth = "http://192.168.15.26:8081/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://192.168.15.26:8081/api/cartoes_RFID/verifyrfid";
 
 
-MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
-LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
+unsigned char aux[14];
+unsigned char auxf[1];
+int long_tag;
+unsigned char next;
+unsigned char card[15];
+
+SoftwareSerial serialArtificial(13, 15, false, 256); //1º TX do leitor, 2º RX do leitor
+//LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
 
 int tr_dest = 1;
 int connected = 0;
@@ -45,36 +41,32 @@ String grant_type = "password";
 String UserName = "sala2";
 String password = "@Sala2";
 
-String ID_Local_Acesso = "2";
+String ID_Local_Acesso = "1";
 String stat = "false";
 
 StaticJsonBuffer<1000> b;
 JsonObject* payload = &(b.createObject());
 
 void setup() {
-  //saved cards
-  num_card = 3;
-  saved_cards[0] = "70 F1 E0 2B";
-  saved_cards[1] = "F9 EC DE 2B";
+  num_card = 0;
 
+  long_tag = 0;
 
-  Wire.begin(2,0);
-  lcd.init();
-  lcd.noBacklight();
+  //Wire.begin(2,0);
+
+  //lcd.init();
+  //lcd.noBacklight();
 
   pinMode(TRAVA, OUTPUT); //Initiate lock
   digitalWrite(TRAVA, LOW); //set locked( by default
   tr_dest = 1; //door locked
 
   Serial.begin(9600);    // Initialize serial communications
+  serialArtificial.begin(9600);
+
   delay(250);
   Serial.println(F("Conectando...."));
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("Conectando...");
 
-  SPI.begin();           // Init SPI bus
-  mfrc522.PCD_Init();    // Init MFRC522
 
   WiFi.begin(ssid, pass); // Initialize wifi connection
   int retries = 0;
@@ -86,144 +78,124 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED) {
 
     Serial.println(F("WiFi conectado."));
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("Conectado.");
-    delay(3000);
+    delay(1000);
     connected = 1;
   }
   if(connected == 1){
     Serial.println(F("======================================================"));
-    Serial.println(F("Pronto para ler cartão UID: \n"));
+    Serial.println(F("Pronto para ler tag: \n"));
     mensagemInicial(); //Print init message
-    delay(3000);
+    delay(1000);
   }
   else{
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("Nao conectado.");
-    lcd.setCursor(0,1);
-    lcd.print("Tente novamente.");
-    delay(3000);
+    delay(1000);
     connected = 0;
   }
 }
 
 void loop() {
 
-  // Look for new cards
-  while ( ! mfrc522.PICC_IsNewCardPresent()) {
-    delay(50);
-    return;
-  }
-  // Select one of the cards
-  while( ! mfrc522.PICC_ReadCardSerial()) {
-    delay(50);
-    return;
-  }
-  //Show UID on serial monitor
-  Serial.print(F("UID tag : "));
-  String content = "";
-  for (byte i = 0; i < mfrc522.uid.size; i++)
-  {
-    Serial.print(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " ");
-    Serial.print(mfrc522.uid.uidByte[i], HEX);
-    content.concat(String(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " "));
-    content.concat(String(mfrc522.uid.uidByte[i], HEX));
-  }
-  Serial.println();
-  Serial.println(F("Message : "));
-  content.toUpperCase();
+  if(serialArtificial.available() > 0 ){
+    Serial.print("\n");
+    serialArtificial.readBytes(aux, 14);
+    delay(250);
 
-
-  String card = content.substring(1);
-  Serial.println("card");
-  Serial.println(card);
-
-  char aux1[11] ;
-  char aux2[11] ;
-
-  saved_cards[0].toCharArray(aux1, 15);
-  card.toCharArray(aux2, 15);
-
-  int httpCode;
-
-
-  String rfid = card;
-  String messageAuth = createForm();
-  httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
-
-
- if(httpCode == 200){
-    String message = createMsgUrlEnc(rfid, stat);
-    String access_token = (*payload)["access_token"];
-    String token_type = (*payload)["token_type"];
-    //aJsonObject* token_ptr = aJson.getObjectItem(payload, "access_token");
-    //aJsonObject* token_type_ptr = aJson.getObjectItem(payload, "token_type");
-    //String token = token_ptr->valuestring;
-    //String token_type = token_type_ptr->valuestring;
-    String header = token_type + " " + access_token;
-    if(stat == "true"){
-      stat = "false";
+    next = serialArtificial.peek();
+    if(next == aux[0]){
+      long_tag = 0;
     }
-    else if(stat == "false"){
-      stat = "true";
-    }
-
-
-    httpCode = sendPOST(httpdestination, header, message, true);
-    if(httpCode == 200){
-      saved_cards[num_card] = card;
-      num_card++;
-      //Locked door, unlock it
-      if (stat == "true") {
-        tr_dest = 0; //door unlocked
-        digitalWrite(TRAVA, HIGH);
-        mensagemEntradaLiberada();
-        delay(3000);
-        mensagemInicial();
-      }
-      //Unlocked door, lock it.
-      else if(stat == "false") {
-        tr_dest = 1; //door locked
-        digitalWrite(TRAVA, LOW);
-        mensagemPortaTravada();
-        delay(3000);
-        mensagemInicial();
-      }
-    }
-    else if(httpCode == 403){
-      if(stat == "true") stat = "false";
-      else if(stat == "false") stat = "true";
-      mensagemCartaoNaoAut();
-      delay(3000);
-      mensagemInicial();
+    else if(next == 0xFF){
+      long_tag = 0;
     }
     else{
-      if(stat == "true") stat = "false";
-      else if(stat == "false") stat = "true";
-      mensagemAcaoNegada();
-      delay(3000);
-      mensagemInicial();
-    }//*/
-  }
-  else{
-    mensagemAcaoNegada();
-    delay(3000);
+      long_tag = 1;
+      delay(250);
+      serialArtificial.readBytes(auxf, 1);
+    }
+
+    for(int i = 0; i < 14; i++){
+      card[i] = aux[i];
+    }
+    if(long_tag == 1){
+      card[14] = auxf[0];
+      long_tag = 0;
+    }
+    else{
+      card[14] = 0;
+    }
+    serialArtificial.flush();
+    //delay(3000);
+
+    for(int i = 0; i < 15; i++){
+      Serial.print(card[i], HEX);
+      Serial.print(" ");
+    }
+    Serial.print("\n");
     mensagemInicial();
+
+    int httpCode;
+    String rfid;
+
+    for(int i = 0; i<15; i++){
+      rfid += String(card[i], HEX);
+    }
+    Serial.println(rfid);
+    String messageAuth = createForm();
+    httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
+
+
+    if(httpCode == 200){
+      String message = createMsgUrlEnc(rfid, stat);
+      String access_token = (*payload)["access_token"];
+      String token_type = (*payload)["token_type"];
+      //aJsonObject* token_ptr = aJson.getObjectItem(payload, "access_token");
+      //aJsonObject* token_type_ptr = aJson.getObjectItem(payload, "token_type");
+      //String token = token_ptr->valuestring;
+      //String token_type = token_type_ptr->valuestring;
+      String header = token_type + " " + access_token;
+      if(stat == "true"){
+        stat = "false";
+      }
+      else if(stat == "false"){
+        stat = "true";
+      }
+
+
+      httpCode = sendPOST(httpdestination, header, message, true);
+      if(httpCode == 200){
+        //saved_cards[num_card] = card;
+        //num_card++;
+        //Locked door, unlock it
+        if (stat == "true") {
+          tr_dest = 0; //door unlocked
+          digitalWrite(TRAVA, HIGH);
+          mensagemEntradaLiberada();
+          mensagemInicial();
+        }
+        //Unlocked door, lock it.
+        else if(stat == "false") {
+          tr_dest = 1; //door locked
+          digitalWrite(TRAVA, LOW);
+          mensagemPortaTravada();
+          mensagemInicial();
+        }
+      }
+      else if(httpCode == 403){
+        if(stat == "true") stat = "false";
+        else if(stat == "false") stat = "true";
+        mensagemCartaoNaoAut();
+        mensagemInicial();
+      }
+      else{
+        if(stat == "true") stat = "false";
+        else if(stat == "false") stat = "true";
+        mensagemAcaoNegada();
+        mensagemInicial();
+      }
+    }
   }
 }
 
-
-//init msg
-void mensagemInicial() {
-  Serial.println(F("Aproxime seu cartão"));
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Aproxime seu");
-  lcd.setCursor(0, 1);
-  lcd.print("cartao do leitor");
-}
 
 //send to server
 int sendPOST(String httpdestination, String header, String body, bool auth){
@@ -248,7 +220,6 @@ int sendPOST(String httpdestination, String header, String body, bool auth){
       x = &(JSONBuffer.parseObject(pl2)); //Parse message
 
       payload = x;
-
       Serial.println(httpCode);   //Print HTTP return code
       Serial.println(pl);    //Print request response payload
 
@@ -276,39 +247,27 @@ String createMsgUrlEnc(String rfid, String stat){
   return form;
 }
 
+//init msg
+void mensagemInicial() {
+  Serial.println(F("Aproxime seu cartão"));
+}
 
 void mensagemEntradaLiberada(){
   Serial.println("Entrada liberada.");
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Ola!");
-  lcd.setCursor(0, 1);
-  lcd.print("Entrada liberada");
   delay(1000);
 }
 
 void mensagemPortaTravada(){
   Serial.println("Porta travada.");
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Porta travada.");
   delay(1000);
 }
 
 void mensagemAcaoNegada(){
   Serial.println(F("Ação negada!"));
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Acao negada!");
   delay(1000);
 }
 
 void mensagemCartaoNaoAut(){
   Serial.println(F("Cartão não autorizado!"));
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Cartao nao");
-  lcd.setCursor(0, 1);
-  lcd.print("autorizado.");
   delay(1000);
 }
