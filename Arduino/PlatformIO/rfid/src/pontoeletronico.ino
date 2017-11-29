@@ -51,19 +51,13 @@ StaticJsonBuffer<1000> b;
 JsonObject* payload = &(b.createObject());
 
 void setup() {
-  //saved cards
-  num_card = 3;
-  saved_cards[0] = "70 F1 E0 2B";
-  saved_cards[1] = "F9 EC DE 2B";
-
+  num_card = 0;
 
   Wire.begin(2,0);
   lcd.init();
   //lcd.noBacklight();
   lcd.backlight();
-
-
-
+  
   pinMode(TRAVA, OUTPUT); //Initiate lock
   digitalWrite(TRAVA, LOW); //set locked(by default)
   tr_dest = 1; //door locked
@@ -90,6 +84,8 @@ void setup() {
     mensagemConectado();
     connected = 1;
   }
+
+  //if connected, gets ready to read cards
   if(connected == 1){
     Serial.println(F("======================================================"));
     Serial.println(F("Pronto para ler cartão UID: \n"));
