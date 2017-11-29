@@ -26,8 +26,8 @@ GND     = GND
 
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermoaju2017se"; // change according to your Network
-const char *httpdestinationauth = "http://192.168.15.20:8081/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://192.168.15.20:8081/api/cartoes_RFID/verifyrfid";
+const char *httpdestinationauth = "http://clinicaapi.gear.host/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://clinicaapi.gear.host/api/cartoes_RFID/verifyrfid";
 
 //String sala = "001A"; //room where the lock is placed
 
@@ -60,12 +60,15 @@ void setup() {
 
   Wire.begin(2,0);
   lcd.init();
-  lcd.noBacklight();
+  lcd.backlight();
 
   pinMode(TRAVA, OUTPUT); //Initiate lock
   digitalWrite(TRAVA, LOW); //set locked( by default
   tr_dest = 1; //door locked
 
+
+  WiFi.begin(ssid, pass); // Initialize wifi connection
+  
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
   Serial.println(F("Conectando...."));
@@ -76,7 +79,7 @@ void setup() {
   SPI.begin();           // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
 
-  WiFi.begin(ssid, pass); // Initialize wifi connection
+
   int retries = 0;
   while ((WiFi.status() != WL_CONNECTED) && (retries < 100)) {
     retries++;
@@ -92,6 +95,8 @@ void setup() {
     delay(3000);
     connected = 1;
   }
+
+  //if connected, gets read to read cards
   if(connected == 1){
     Serial.println(F("======================================================"));
     Serial.println(F("Pronto para ler cartão UID: \n"));
