@@ -25,10 +25,10 @@ GND     = GND
 #define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
 #define TRAVA 15
 
-const char *ssid =  "APPis";     // change according to your Network - cannot be longer than 32 characters!
-const char *pass = "appis@2017"; // change according to your Network
-const char *httpdestinationauth = "http://192.168.0.105:8081/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://192.168.0.105:8081/api/ponto_funcionarios";
+const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
+const char *pass = "dermoaju2017se"; // change according to your Network
+const char *httpdestinationauth = "http://clinicaapi.gear.host/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://clinicaapi.gear.host/api/ponto_funcionarios";
 
 //String sala = "001A"; //room where the lock is placed
 
@@ -63,10 +63,12 @@ void setup() {
   lcd.backlight();
 
 
+
   pinMode(TRAVA, OUTPUT); //Initiate lock
-  digitalWrite(TRAVA, LOW); //set locked( by default
+  digitalWrite(TRAVA, LOW); //set locked(by default)
   tr_dest = 1; //door locked
 
+  WiFi.begin(ssid, pass); // Initialize wifi connection
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
   mensagemConectando();
@@ -74,7 +76,7 @@ void setup() {
   SPI.begin();           // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
 
-  WiFi.begin(ssid, pass); // Initialize wifi connection
+
   int retries = 0;
 
   while ((WiFi.status() != WL_CONNECTED) && (retries < 5000)) {
@@ -130,12 +132,6 @@ void loop() {
   String card = content.substring(1);
   Serial.println("card");
   Serial.println(card);
-
-  char aux1[11] ;
-  char aux2[11] ;
-
-  saved_cards[0].toCharArray(aux1, 15);
-  card.toCharArray(aux2, 15);
 
   int httpCode;
 
