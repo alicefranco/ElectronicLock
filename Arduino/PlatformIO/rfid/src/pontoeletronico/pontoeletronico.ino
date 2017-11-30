@@ -26,8 +26,8 @@ GND     = GND
 
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass = "dermoaju2017se"; // change according to your Network
-const char *httpdestinationauth = "http://192.168.15.20:8081/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://192.168.15.20:8081/api/ponto_funcionarios";
+const char *httpdestinationauth = "http://192.168.15.26:8081/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://192.168.15.26:8081/api/ponto_funcionarios";
 
 //String sala = "001A"; //room where the lock is placed
 
@@ -55,8 +55,6 @@ void setup() {
   saved_cards[0] = "70 F1 E0 2B";
   saved_cards[1] = "F9 EC DE 2B";
 
-
-  Wire.begin(2,0);
   lcd.init();
   lcd.noBacklight();
 
@@ -64,6 +62,7 @@ void setup() {
   digitalWrite(TRAVA, LOW); //set locked( by default
   tr_dest = 1; //door locked
 
+  Wire.begin(2,0);
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
   mensagemConectando();
