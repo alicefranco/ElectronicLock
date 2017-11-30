@@ -26,8 +26,8 @@ GND     = GND
 
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass = "dermoaju2017se"; // change according to your Network
-const char *httpdestinationauth = "http://192.168.15.26:8081/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://192.168.15.26:8081/api/ponto_funcionarios";
+const char *httpdestinationauth = "http://clinicaapi.gear.host/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://clinicaapi.gear.host/api/ponto_funcionarios"; //http://192.168.15.26:8081
 
 //String sala = "001A"; //room where the lock is placed
 
@@ -298,6 +298,7 @@ void mensagemNaoConectado(){
 }
 
 void mensagemRegistro(String data, String hora){
+  Serial.println(data + " " + hora +" Hora registrada.");
   lcd.clear();
   lcd.setCursor(0,0);
   lcd.print(data + " " + hora);
