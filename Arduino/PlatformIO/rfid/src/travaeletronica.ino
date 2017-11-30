@@ -29,8 +29,6 @@ const char *pass =  "dermoaju2017se"; // change according to your Network
 const char *httpdestinationauth = "http://clinicaapi.gear.host/token";// "http://httpbin.org/post"; // //
 const char *httpdestination = "http://clinicaapi.gear.host/api/cartoes_RFID/verifyrfid";
 
-//String sala = "001A"; //room where the lock is placed
-
 
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
 LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
@@ -53,9 +51,7 @@ JsonObject* payload = &(b.createObject());
 
 void setup() {
   //saved cards
-  num_card = 3;
-  saved_cards[0] = "70 F1 E0 2B";
-  saved_cards[1] = "F9 EC DE 2B";
+  num_card = 0;
 
 
   Wire.begin(2,0);
@@ -68,13 +64,10 @@ void setup() {
 
 
   WiFi.begin(ssid, pass); // Initialize wifi connection
-  
+
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
-  Serial.println(F("Conectando...."));
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("Conectando...");
+  mensagemConectando();
 
   SPI.begin();           // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
@@ -87,12 +80,7 @@ void setup() {
     Serial.print(".");
   }
   if (WiFi.status() == WL_CONNECTED) {
-
-    Serial.println(F("WiFi conectado."));
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("Conectado.");
-    delay(3000);
+    mensagemConectado();
     connected = 1;
   }
 
@@ -104,12 +92,7 @@ void setup() {
     delay(3000);
   }
   else{
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("Nao conectado.");
-    lcd.setCursor(0,1);
-    lcd.print("Tente novamente.");
-    delay(3000);
+    mensagemNaoConectado();
     connected = 0;
   }
 }
@@ -316,4 +299,29 @@ void mensagemCartaoNaoAut(){
   lcd.setCursor(0, 1);
   lcd.print("autorizado.");
   delay(1000);
+}
+
+void mensagemConectado(){
+  Serial.println(F("WiFi conectado."));
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Conectado.");
+  delay(3000);
+}
+
+void mensagemNaoConectado(){
+  Serial.println(F("Não conectado, tente novamente."));
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Nao conectado.");
+  lcd.setCursor(0,1);
+  lcd.print("Tente novamente.");
+  delay(3000);
+}
+
+void mensagemConectando(){
+  Serial.println(F("Conectando...."));
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Conectando...");
 }
