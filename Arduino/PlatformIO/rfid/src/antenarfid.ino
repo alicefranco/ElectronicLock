@@ -14,7 +14,7 @@ Many thanks to nikxha from the ESP8266 forum
 
 //#define RST_PIN  5  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
 //#define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
-#define TRAVA 14
+#define TRAVA 15
 
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermoaju2017se"; // change according to your Network
@@ -28,7 +28,7 @@ int long_tag;
 unsigned char next;
 unsigned char card[15];
 
-SoftwareSerial serialArtificial(13, 15, false, 256); //1º TX do leitor, 2º RX do leitor
+SoftwareSerial serialArtificial(13, 14, false, 256); //1º TX do leitor, 2º RX do leitor
 //LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
 
 int tr_dest = 1;
@@ -65,7 +65,10 @@ void setup() {
   Serial.println(F("Conectando...."));
 
 
-  WiFi.begin(ssid, pass); // Initialize wifi connection
+  if(WiFi.status() != WL_CONNECTED){
+    WiFi.begin(ssid, pass); // Initialize wifi connection
+  }
+  
   int retries = 0;
   while ((WiFi.status() != WL_CONNECTED) && (retries < 100)) {
     retries++;
