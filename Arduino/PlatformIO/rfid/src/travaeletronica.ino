@@ -63,7 +63,9 @@ void setup() {
   tr_dest = 1; //door locked
 
 
-  WiFi.begin(ssid, pass); // Initialize wifi connection
+  if(WiFi.status() != WL_CONNECTED){
+    WiFi.begin(ssid, pass); // Initialize wifi connection
+  }
 
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
