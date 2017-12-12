@@ -1,14 +1,15 @@
 /*
 Many thanks to nikxha from the ESP8266 forum
 */
-#include <Arduino.h>
+
 #include <ArduinoJson.h>
-#include <ESP8266WiFi.h>
-#include <SPI.h>
-#include "MFRC522.h"
-#include <ESP8266HTTPClient.h>
 #include <aJSON.h>
+#include <WiFi.h>
+#include <SPI.h>
+#include <MFRC522.h>
+#include <HTTPClient.h>
 #include <LiquidCrystal_I2C.h>
+
 
 /* wiring the MFRC522 to ESP8266 (ESP-12)
 RST     = GPIO5
@@ -20,8 +21,8 @@ GND     = GND
 3.3V    = 3.3V
 */
 
-#define RST_PIN  5  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
-#define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
+#define RST_PIN  17  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
+#define SS_PIN  5  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
 #define TRAVA 15
 
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
@@ -44,7 +45,7 @@ String UserName = "sala2";
 String password = "@Sala2";
 
 String ID_Local_Acesso = "2";
-String stat = "false";
+String st = "false";
 
 StaticJsonBuffer<1000> b;
 JsonObject* payload = &(b.createObject());
@@ -54,9 +55,10 @@ void setup() {
   num_card = 0;
 
 
-  Wire.begin(2,0);
-  lcd.init();
-  lcd.backlight();
+  //Wire.begin(2,0);
+  lcd.begin();
+  lcd.clear();
+  lcd.noBacklight();
 
   pinMode(TRAVA, OUTPUT); //Initiate lock
   digitalWrite(TRAVA, LOW); //set locked( by default
@@ -67,12 +69,13 @@ void setup() {
     WiFi.begin(ssid, pass); // Initialize wifi connection
   }
 
-  Serial.begin(9600);    // Initialize serial communications
+  Serial.begin(115200);    // Initialize serial communications
   delay(250);
   mensagemConectando();
 
-  SPI.begin();           // Init SPI bus
+  SPI.begin();            // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
+  mfrc522.PCD_DumpVersionToSerial();  // Show details of PCD - MFRC522 Card Reader details
 
 
   int retries = 0;
@@ -145,7 +148,7 @@ void loop() {
 
 
  if(httpCode == 200){
-    String message = createMsgUrlEnc(rfid, stat);
+    String message = createMsgUrlEnc(rfid, st);
     String access_token = (*payload)["access_token"];
     String token_type = (*payload)["token_type"];
     //aJsonObject* token_ptr = aJson.getObjectItem(payload, "access_token");
@@ -153,11 +156,11 @@ void loop() {
     //String token = token_ptr->valuestring;
     //String token_type = token_type_ptr->valuestring;
     String header = token_type + " " + access_token;
-    if(stat == "true"){
-      stat = "false";
+    if(st == "true"){
+      st = "false";
     }
-    else if(stat == "false"){
-      stat = "true";
+    else if(st == "false"){
+      st = "true";
     }
 
 
@@ -166,7 +169,7 @@ void loop() {
       saved_cards[num_card] = card;
       num_card++;
       //Locked door, unlock it
-      if (stat == "true") {
+      if (st == "true") {
         tr_dest = 0; //door unlocked
         digitalWrite(TRAVA, HIGH);
         mensagemEntradaLiberada();
@@ -174,7 +177,7 @@ void loop() {
         mensagemInicial();
       }
       //Unlocked door, lock it.
-      else if(stat == "false") {
+      else if(st == "false") {
         tr_dest = 1; //door locked
         digitalWrite(TRAVA, LOW);
         mensagemPortaTravada();
@@ -183,19 +186,19 @@ void loop() {
       }
     }
     else if(httpCode == 403){
-      if(stat == "true") stat = "false";
-      else if(stat == "false") stat = "true";
+      if(st == "true") st = "false";
+      else if(st == "false") st = "true";
       mensagemCartaoNaoAut();
       delay(3000);
       mensagemInicial();
     }
     else{
-      if(stat == "true") stat = "false";
-      else if(stat == "false") stat = "true";
+      if(st == "true") st = "false";
+      else if(st == "false") st = "true";
       mensagemAcaoNegada();
       delay(3000);
       mensagemInicial();
-    }//*/
+    }
   }
   else{
     mensagemAcaoNegada();
@@ -259,9 +262,9 @@ String createForm(){
   return form;
 }
 
-String createMsgUrlEnc(String rfid, String stat){
+String createMsgUrlEnc(String rfid, String st){
   String form = "RFID=" + rfid + "&"
-    + "Status=" + stat + "&"
+    + "Status=" + st + "&"
     +"ID_Local_Acesso=" + ID_Local_Acesso;
   return form;
 }
