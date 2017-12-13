@@ -1,0 +1,10 @@
+*.b#?
+*.cmp
+*.drd
+*.dri
+*.drl
+*.gpi
+*.plc
+*.sol
+*.stc
+*.sts

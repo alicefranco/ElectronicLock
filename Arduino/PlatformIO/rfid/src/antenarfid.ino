@@ -14,7 +14,8 @@ Many thanks to nikxha from the ESP8266 forum
 
 //#define RST_PIN  5  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
 //#define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
-#define TRAVA A0
+#define TRAVA 14
+#define LED_CON 12
 
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermoaju2017se"; // change according to your Network
@@ -28,6 +29,7 @@ int long_tag;
 unsigned char next;
 unsigned char card[15];
 
+
 SoftwareSerial serialArtificial(15, 16, false, 256); //1º TX do leitor, 2º RX do leitor
 //LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
 
@@ -35,7 +37,7 @@ int tr_dest = 1;
 int connected = 0;
 
 int num_card;
-String saved_cards[20];
+String saved_cards[100];
 long time1, time2;
 
 
@@ -57,6 +59,10 @@ void setup() {
   pinMode(TRAVA, OUTPUT); //Initiate lock
   digitalWrite(TRAVA, LOW); //set locked( by default
   tr_dest = 1; //door locked
+
+  pinMode(LED_CON, OUTPUT); //led indicator for connection
+  digitalWrite(LED_CON, LOW); //set turned off
+
 
   Serial.begin(9600);    // Initialize serial communications
   serialArtificial.begin(9600);
@@ -80,6 +86,7 @@ void setup() {
     Serial.println(F("WiFi conectado."));
     delay(1000);
     connected = 1;
+    digitalWrite(LED_CON, HIGH);
   }
 
   //if connection is established, gets ready to ready tag
@@ -100,6 +107,12 @@ void setup() {
 }
 
 void loop() {
+
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(LED_CON, HIGH);
+  }
+  else digitalWrite(LED_CON, LOW);
+
   if((millis() - time1) >= 10000){
     if(serialArtificial.available() > 0 ){
       time1 = millis();
@@ -138,59 +151,54 @@ void loop() {
       for(int i = 0; i<15; i++){
         rfid += String(card[i], HEX);
       }
-      Serial.println(rfid);
-      String messageAuth = createForm();
-      httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
 
-
-      if(httpCode == 200){
-        String message = createMsgUrlEnc(rfid, stat);
-        String access_token = (*payload)["access_token"];
-        String token_type = (*payload)["token_type"];
-        //aJsonObject* token_ptr = aJson.getObjectItem(payload, "access_token");
-        //aJsonObject* token_type_ptr = aJson.getObjectItem(payload, "token_type");
-        //String token = token_ptr->valuestring;
-        //String token_type = token_type_ptr->valuestring;
-        String header = token_type + " " + access_token;
-        if(stat == "true"){
-          stat = "false";
+      int stored = 0;
+      for(int i = 0; i < num_card; i++) {
+        if(saved_cards[i] == rfid){
+          stored = 1;
+          break;
         }
-        else if(stat == "false"){
-          stat = "true";
-        }
+      }
 
-
-        httpCode = sendPOST(httpdestination, header, message, true);
+      int online = 0;
+      if(stored == 0){
+        Serial.println(rfid);
+        String messageAuth = createForm();
+        httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
         if(httpCode == 200){
-          //saved_cards[num_card] = card;
-          //num_card++;
-          //Locked door, unlock it
-          if (stat == "true") {
-            tr_dest = 0; //door unlocked
-            digitalWrite(TRAVA, HIGH);
-            mensagemEntradaLiberada();
+          String message = createMsgUrlEnc(rfid, stat);
+          String access_token = (*payload)["access_token"];
+          String token_type = (*payload)["token_type"];
+          String header = token_type + " " + access_token;
+
+          httpCode = sendPOST(httpdestination, header, message, true);
+          if(httpCode == 200){
+            online = 1;
+            saved_cards[num_card] = rfid;
+            num_card++;
+          }
+          else if(httpCode == 403){
+            mensagemCartaoNaoAut();
             mensagemInicial();
           }
-          //Unlocked door, lock it.
-          else if(stat == "false") {
-            tr_dest = 1; //door locked
-            digitalWrite(TRAVA, LOW);
-            mensagemPortaTravada();
+          else{
+            mensagemAcaoNegada();
             mensagemInicial();
           }
         }
-        else if(httpCode == 403){
-          if(stat == "true") stat = "false";
-          else if(stat == "false") stat = "true";
-          mensagemCartaoNaoAut();
-          mensagemInicial();
-        }
-        else{
-          if(stat == "true") stat = "false";
-          else if(stat == "false") stat = "true";
-          mensagemAcaoNegada();
-          mensagemInicial();
-        }
+      }
+
+
+      //execute
+      if(stored || online){
+        //open door
+        digitalWrite(TRAVA, HIGH);
+        mensagemEntradaLiberada();
+        delay(5000);
+        //lock door
+        digitalWrite(TRAVA, LOW);
+        mensagemPortaTravada();
+        mensagemInicial();
       }
     }
     //Serial.println(time1);
