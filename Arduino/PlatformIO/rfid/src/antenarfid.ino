@@ -1,6 +1,3 @@
-/*
-Many thanks to nikxha from the ESP8266 forum
-*/
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
@@ -10,12 +7,15 @@ Many thanks to nikxha from the ESP8266 forum
 #include <aJSON.h>
 #include <LiquidCrystal_I2C.h>
 #include <SoftwareSerial.h>
+#include <Ultrasonic.h>
 
+#define TRAVA 13
+#define LED_CON 0
 
-//#define RST_PIN  5  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
-//#define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
-#define TRAVA 14
-#define LED_CON 12
+#define pino_trigger 5
+#define pino_echo 4
+#define pino_trigger 14
+#define pino_echo2 12
 
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermoaju2017se"; // change according to your Network
@@ -31,7 +31,7 @@ unsigned char card[15];
 
 
 SoftwareSerial serialArtificial(15, 16, false, 256); //1º TX do leitor, 2º RX do leitor
-//LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
+Ultrasonic ultrasonic(pino_trigger, pino_echo);
 
 int tr_dest = 1;
 int connected = 0;
@@ -40,6 +40,8 @@ int num_card;
 String saved_cards[100];
 long time1, time2;
 
+float cmMsec, inMsec;
+long microsec;
 
 String grant_type = "password";
 String UserName = "sala2";
@@ -113,7 +115,7 @@ void loop() {
   }
   else digitalWrite(LED_CON, LOW);
 
-  if((millis() - time1) >= 10000){
+  if((millis() - time1) >= 5000){
     if(serialArtificial.available() > 0 ){
       time1 = millis();
       serialArtificial.readBytes(aux, 14);
@@ -195,13 +197,21 @@ void loop() {
         digitalWrite(TRAVA, HIGH);
         mensagemEntradaLiberada();
         delay(5000);
+
+        microsec = ultrasonic.timing();
+        cmMsec = ultrasonic.convert(microsec, Ultrasonic::CM);
+        Serial.println(cmMsec);
+        while(cmMsec < 200) {
+          microsec = ultrasonic.timing();
+          cmMsec = ultrasonic.convert(microsec, Ultrasonic::CM);
+        }
+        Serial.println(cmMsec);
         //lock door
         digitalWrite(TRAVA, LOW);
         mensagemPortaTravada();
         mensagemInicial();
       }
     }
-    //Serial.println(time1);
   }
   else serialArtificial.flush();
 }
