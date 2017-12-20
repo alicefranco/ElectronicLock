@@ -9,40 +9,47 @@
 #include <SoftwareSerial.h>
 #include <Ultrasonic.h>
 
+//led and lock pins
 #define TRAVA 13
-#define LED_CON 0
+#define LED_C 0
+#define LED_O 2
 
+//US pins
 #define pino_trigger 5
 #define pino_echo 4
-#define pino_trigger 14
+#define pino_trigger2 14
 #define pino_echo2 12
 
+//connection parameters
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermoaju2017se"; // change according to your Network
 const char *httpdestinationauth = "http://clinicaapi.gear.host/token";// "http://httpbin.org/post"; // //
 const char *httpdestination = "http://clinicaapi.gear.host/api/cartoes_RFID/verifyrfid";
 
 
+//auxs
 unsigned char aux[14];
 unsigned char auxf[1];
-int long_tag;
 unsigned char next;
+
+//tag vars
+int num_card;
+int long_tag;
+String saved_cards[100];
 unsigned char card[15];
 
-
-SoftwareSerial serialArtificial(15, 16, false, 256); //1º TX do leitor, 2º RX do leitor
-Ultrasonic ultrasonic(pino_trigger, pino_echo);
-
+//stats vars
 int tr_dest = 1;
 int connected = 0;
+int start = 0;
 
-int num_card;
-String saved_cards[100];
+//US aux vars
 long time1, time2;
-
 float cmMsec, inMsec;
-long microsec;
+float cmMsec2, inMsec2;
+long microsec, microsec2;
 
+//server side auth and stat parameters
 String grant_type = "password";
 String UserName = "sala2";
 String password = "@Sala2";
@@ -50,21 +57,26 @@ String password = "@Sala2";
 String ID_Local_Acesso = "1";
 String stat = "false";
 
+//init
+SoftwareSerial serialArtificial(15, 16, false, 256); //1º TX do leitor, 2º RX do leitor
+Ultrasonic ultrasonic(pino_trigger, pino_echo);
+Ultrasonic ultrasonic2(pino_trigger2, pino_echo2);
+
 StaticJsonBuffer<1000> b;
 JsonObject* payload = &(b.createObject());
 
 void setup() {
   num_card = 0;
-
   long_tag = 0;
 
   pinMode(TRAVA, OUTPUT); //Initiate lock
   digitalWrite(TRAVA, LOW); //set locked( by default
   tr_dest = 1; //door locked
 
-  pinMode(LED_CON, OUTPUT); //led indicator for connection
-  digitalWrite(LED_CON, LOW); //set turned off
-
+  pinMode(LED_C, OUTPUT); //led indicator for connection
+  digitalWrite(LED_C, LOW); //set turned off
+  pinMode(LED_O, OUTPUT); //led indicator for connection
+  digitalWrite(LED_O, HIGH); //set turned off
 
   Serial.begin(9600);    // Initialize serial communications
   serialArtificial.begin(9600);
@@ -72,7 +84,7 @@ void setup() {
   delay(250);
   Serial.println(F("Conectando...."));
 
-
+  //connection initialization
   if(WiFi.status() != WL_CONNECTED){
     WiFi.begin(ssid, pass); // Initialize wifi connection
   }
@@ -88,7 +100,8 @@ void setup() {
     Serial.println(F("WiFi conectado."));
     delay(1000);
     connected = 1;
-    digitalWrite(LED_CON, HIGH);
+    digitalWrite(LED_C, HIGH);
+    digitalWrite(LED_O, LOW);
   }
 
   //if connection is established, gets ready to ready tag
@@ -109,14 +122,22 @@ void setup() {
 }
 
 void loop() {
-
+  //status led setup
   if (WiFi.status() == WL_CONNECTED) {
-    digitalWrite(LED_CON, HIGH);
+    digitalWrite(LED_C, HIGH);
+    digitalWrite(LED_O, LOW);
   }
-  else digitalWrite(LED_CON, LOW);
+  else{ 
+    digitalWrite(LED_C, LOW);
+    digitalWrite(LED_O, HIGH);
+  }
 
-  if((millis() - time1) >= 5000){
+  //timing 
+  if((start == 0) || ((millis() - time1) >= 5000)){
+    delay(1000);
+    //read a tag with 14 or 15 digits (HEX)
     if(serialArtificial.available() > 0 ){
+      start = 1;
       time1 = millis();
       serialArtificial.readBytes(aux, 14);
       delay(250);
@@ -134,6 +155,7 @@ void loop() {
         serialArtificial.readBytes(auxf, 1);
       }
 
+      //copy the tag to the array card
       for(int i = 0; i < 14; i++){
         card[i] = aux[i];
       }
@@ -154,6 +176,7 @@ void loop() {
         rfid += String(card[i], HEX);
       }
 
+      //check if the tag is already stored
       int stored = 0;
       for(int i = 0; i < num_card; i++) {
         if(saved_cards[i] == rfid){
@@ -162,6 +185,7 @@ void loop() {
         }
       }
 
+      //if the tag is not stored check if it is registered
       int online = 0;
       if(stored == 0){
         Serial.println(rfid);
@@ -191,21 +215,28 @@ void loop() {
       }
 
 
-      //execute
+      //open the door
       if(stored || online){
-        //open door
         digitalWrite(TRAVA, HIGH);
         mensagemEntradaLiberada();
         delay(5000);
 
         microsec = ultrasonic.timing();
+        microsec2 = ultrasonic2.timing();
+        
         cmMsec = ultrasonic.convert(microsec, Ultrasonic::CM);
-        Serial.println(cmMsec);
-        while(cmMsec < 200) {
+        cmMsec2 = ultrasonic2.convert(microsec2, Ultrasonic::CM);
+       
+        //test if can close the door using data from US sensors
+        while((cmMsec < 20) || (cmMsec2 < 20)) {
           microsec = ultrasonic.timing();
+          microsec2 = ultrasonic2.timing();
+          
           cmMsec = ultrasonic.convert(microsec, Ultrasonic::CM);
+          cmMsec2 = ultrasonic2.convert(microsec2, Ultrasonic::CM);
         }
         Serial.println(cmMsec);
+        Serial.println(cmMsec2);
         //lock door
         digitalWrite(TRAVA, LOW);
         mensagemPortaTravada();
@@ -267,7 +298,7 @@ String createMsgUrlEnc(String rfid, String stat){
   return form;
 }
 
-//init msg
+//Serial messages
 void mensagemInicial() {
   Serial.println(F("Aproxime seu cartão"));
 }
