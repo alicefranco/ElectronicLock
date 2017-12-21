@@ -17,8 +17,6 @@
 //US pins
 #define pino_trigger 5
 #define pino_echo 4
-#define pino_trigger2 14
-#define pino_echo2 12
 
 //connection parameters
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
@@ -45,9 +43,8 @@ int start = 0;
 
 //US aux vars
 long time1, time2;
-float cmMsec, inMsec;
-float cmMsec2, inMsec2;
-long microsec, microsec2;
+float sensorUS;
+long sensorUSms;
 
 //server side auth and stat parameters
 String grant_type = "password";
@@ -60,7 +57,6 @@ String stat = "false";
 //init
 SoftwareSerial serialArtificial(15, 16, false, 256); //1º TX do leitor, 2º RX do leitor
 Ultrasonic ultrasonic(pino_trigger, pino_echo);
-Ultrasonic ultrasonic2(pino_trigger2, pino_echo2);
 
 StaticJsonBuffer<1000> b;
 JsonObject* payload = &(b.createObject());
@@ -221,22 +217,15 @@ void loop() {
         mensagemEntradaLiberada();
         delay(5000);
 
-        microsec = ultrasonic.timing();
-        microsec2 = ultrasonic2.timing();
-        
-        cmMsec = ultrasonic.convert(microsec, Ultrasonic::CM);
-        cmMsec2 = ultrasonic2.convert(microsec2, Ultrasonic::CM);
-       
+        sensorUS = ultrasonic.timing();
+        sensorUSms = ultrasonic.convert(sensorUS, Ultrasonic::CM);
+        Serial.println(sensorUSms);
         //test if can close the door using data from US sensors
-        while((cmMsec < 20) || (cmMsec2 < 20)) {
-          microsec = ultrasonic.timing();
-          microsec2 = ultrasonic2.timing();
-          
-          cmMsec = ultrasonic.convert(microsec, Ultrasonic::CM);
-          cmMsec2 = ultrasonic2.convert(microsec2, Ultrasonic::CM);
+        while(sensorUSms < 100) {
+          sensorUS = ultrasonic.timing();
+          sensorUSms = ultrasonic.convert(sensorUS, Ultrasonic::CM);
         }
-        Serial.println(cmMsec);
-        Serial.println(cmMsec2);
+        Serial.println(sensorUSms);
         //lock door
         digitalWrite(TRAVA, LOW);
         mensagemPortaTravada();
