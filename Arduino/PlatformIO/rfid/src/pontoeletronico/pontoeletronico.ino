@@ -1,6 +1,3 @@
-/*
-Many thanks to nikxha from the ESP8266 forum
-*/
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
@@ -20,57 +17,61 @@ GND     = GND
 3.3V    = 3.3V
 */
 
+//pin def
 #define RST_PIN  5  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
 #define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
 #define TRAVA 15
 
+//auth parameters
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass = "dermoaju2017se"; // change according to your Network
 const char *httpdestinationauth = "http://clinicaapi.gear.host/token";// "http://httpbin.org/post"; // //
 const char *httpdestination = "http://clinicaapi.gear.host/api/ponto_funcionarios"; //http://192.168.15.26:8081
 
-//String sala = "001A"; //room where the lock is placed
-
-
-MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
-LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
-
+//status vars
 int tr_dest = 1;
 int connected = 0;
 
+//card vars
 int num_card;
 String saved_cards[20];
 
+//server side auth vars
 String grant_type = "password";
-String UserName = "pontodermo";
-String password = "@Pontodermo1";
+String UserName = "PontoDermo";
+String password = "@PontoDermo1";
 
+//init
+MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
+LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
 
 StaticJsonBuffer<1000> b;
 JsonObject* payload = &(b.createObject());
 
 void setup() {
   //saved cards
-  num_card = 3;
-  saved_cards[0] = "70 F1 E0 2B";
-  saved_cards[1] = "F9 EC DE 2B";
+  num_card = 0;
 
+  Wire.begin(2,0);
   lcd.init();
-  lcd.noBacklight();
+  lcd.backlight();
 
   pinMode(TRAVA, OUTPUT); //Initiate lock
   digitalWrite(TRAVA, LOW); //set locked( by default
   tr_dest = 1; //door locked
 
-  Wire.begin(2,0);
+  if(WiFi.status() != WL_CONNECTED){
+    WiFi.begin(ssid, pass); // Initialize wifi connection
+  }
+  
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
   mensagemConectando();
 
+  //connection init
   SPI.begin();           // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
 
-  WiFi.begin(ssid, pass); // Initialize wifi connection
   int retries = 0;
   while ((WiFi.status() != WL_CONNECTED) && (retries < 100)) {
     retries++;
@@ -120,7 +121,6 @@ void loop() {
   Serial.println(F("Message : "));
   content.toUpperCase();
 
-
   String card = content.substring(1);
   Serial.println("card");
   Serial.println(card);
@@ -131,9 +131,9 @@ void loop() {
   saved_cards[0].toCharArray(aux1, 15);
   card.toCharArray(aux2, 15);
 
+  //connection to server
   int httpCode;
-
-
+  
   String rfid = card;
   String messageAuth = createForm();
   httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
@@ -225,6 +225,7 @@ int sendPOST(String httpdestination, String header, String body, bool auth){
     return httpCode;
 }
 
+//predefined messages
 String createForm(){
   String form = "grant_type=" + grant_type + "&"
     + "UserName=" + UserName + "&"
