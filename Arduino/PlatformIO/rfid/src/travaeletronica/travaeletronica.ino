@@ -14,15 +14,14 @@
 #define LED_O 27
 
 //connection parameters
-const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
-const char *pass =  "dermoaju2017se"; // change according to your Network
+const char *ssid =  "APPis";//"Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
+const char *pass =  "appis"; //"dermoaju2017se"; // change according to your Network
 const char *httpdestinationauth = "http://clinicaapi.gear.host/token";// "http://httpbin.org/post"; // //
 const char *httpdestination = "http://clinicaapi.gear.host/api/cartoes_RFID/verifyrfid";
 
 //status vars
-int tr_dest = 1;
 int connected = 0;
-String st = "false";
+String st = "true"; //door locked
 
 //card vars
 int num_card;
@@ -57,8 +56,6 @@ void setup() {
   digitalWrite(TRAVA, LOW); //set locked( by default
   digitalWrite(LED_C, LOW); //set LED_C default state
   digitalWrite(LED_O, HIGH); //set LED_O default state
-  
-  tr_dest = 1; //door locked
 
   if(WiFi.status() != WL_CONNECTED){
     WiFi.begin(ssid, pass); // Initialize wifi connection
@@ -84,8 +81,14 @@ void setup() {
     mensagemConectado();
     connected = 1;
   }
+  else{
+    digitalWrite(LED_C, LOW);
+    digitalWrite(LED_O, HIGH);
+    mensagemNaoConectado();
+    connected = 0;
+  }
 
-  //if connected, gets read to read cards
+  /*//if connected, gets read to read cards
   if(connected == 1){
     Serial.println(F("======================================================"));
     Serial.println(F("Pronto para ler cartão UID: \n"));
@@ -95,7 +98,8 @@ void setup() {
   else{
     mensagemNaoConectado();
     connected = 0;
-  }
+  }*/
+  mensagemInicial();
 }
 
 void loop() {
@@ -103,10 +107,12 @@ void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     digitalWrite(LED_C, HIGH);
     digitalWrite(LED_O, LOW);
+    connected = 1;
   }
   else{ 
     digitalWrite(LED_C, LOW);
     digitalWrite(LED_O, HIGH);
+    connected = 0;
   }
 
   // Look for new cards
@@ -133,82 +139,103 @@ void loop() {
   Serial.println(F("Message : "));
   content.toUpperCase();
 
-
   String card = content.substring(1);
   Serial.println("card");
   Serial.println(card);
 
-  char aux1[11] ;
-  char aux2[11] ;
+  //char aux1[11] ;
+  //char aux2[11] ;
 
-  saved_cards[0].toCharArray(aux1, 15);
-  card.toCharArray(aux2, 15);
+  //saved_cards[0].toCharArray(aux1, 15);
+  //card.toCharArray(aux2, 15);
 
-  int httpCode;
-
-
-  String rfid = card;
-  String messageAuth = createForm();
-  httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
-
-
- if(httpCode == 200){
-    String message = createMsgUrlEnc(rfid, st);
-    String access_token = (*payload)["access_token"];
-    String token_type = (*payload)["token_type"];
-    //aJsonObject* token_ptr = aJson.getObjectItem(payload, "access_token");
-    //aJsonObject* token_type_ptr = aJson.getObjectItem(payload, "token_type");
-    //String token = token_ptr->valuestring;
-    //String token_type = token_type_ptr->valuestring;
-    String header = token_type + " " + access_token;
-    if(st == "true"){
-      st = "false";
-    }
-    else if(st == "false"){
-      st = "true";
-    }
-
-
-    httpCode = sendPOST(httpdestination, header, message, true);
-    if(httpCode == 200){
-      saved_cards[num_card] = card;
-      num_card++;
-      //Locked door, unlock it
-      if (st == "true") {
-        tr_dest = 0; //door unlocked
-        digitalWrite(TRAVA, HIGH);
-        mensagemEntradaLiberada();
+  if(connected == 1){
+    int httpCode;
+  
+  
+    String rfid = card;
+    String messageAuth = createForm();
+    httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
+  
+  
+   if(httpCode == 200){
+      String message = createMsgUrlEnc(rfid, st);
+      String access_token = (*payload)["access_token"];
+      String token_type = (*payload)["token_type"];
+      String header = token_type + " " + access_token;
+      if(st == "true"){
+        st = "false";
+      }
+      else if(st == "false"){
+        st = "true";
+      }
+  
+  
+      httpCode = sendPOST(httpdestination, header, message, true);
+      if(httpCode == 200){
+        saved_cards[num_card] = card;
+        num_card++;
+        //Locked door, unlock it
+        if (st == "true") {
+          digitalWrite(TRAVA, HIGH);
+          mensagemEntradaLiberada();
+          delay(3000);
+          mensagemInicial();
+        }
+        //Unlocked door, lock it.
+        else if(st == "false") {
+          digitalWrite(TRAVA, LOW);
+          mensagemPortaTravada();
+          delay(3000);
+          mensagemInicial();
+        }
+      }
+      else if(httpCode == 403){
+        if(st == "true") st = "false";
+        else if(st == "false") st = "true";
+        mensagemCartaoNaoAut();
         delay(3000);
         mensagemInicial();
       }
-      //Unlocked door, lock it.
-      else if(st == "false") {
-        tr_dest = 1; //door locked
-        digitalWrite(TRAVA, LOW);
-        mensagemPortaTravada();
+      else{
+        if(st == "true") st = "false";
+        else if(st == "false") st = "true";
+        mensagemAcaoNegada();
         delay(3000);
         mensagemInicial();
-      }
-    }
-    else if(httpCode == 403){
-      if(st == "true") st = "false";
-      else if(st == "false") st = "true";
-      mensagemCartaoNaoAut();
-      delay(3000);
-      mensagemInicial();
+      }//*/
     }
     else{
-      if(st == "true") st = "false";
-      else if(st == "false") st = "true";
       mensagemAcaoNegada();
       delay(3000);
       mensagemInicial();
-    }//*/
+    } 
   }
+  //opening door offline
   else{
-    mensagemAcaoNegada();
-    delay(3000);
-    mensagemInicial();
+    //Serial.println("hey");
+    int stored = 0;
+    for(int i = 0; i < num_card; i++){
+      if(saved_cards[i] == card){
+        stored = 1;
+        if(st = "false"){
+          digitalWrite(TRAVA, HIGH);
+          mensagemPortaTravada();
+          delay(3000);
+          mensagemInicial();
+          st = "true";
+        }
+        else if(st = "true"){
+          digitalWrite(TRAVA, LOW);
+          mensagemPortaTravada();
+          delay(3000);
+          mensagemInicial();
+          st = "false";
+        }
+        break;
+      }
+    }
+    if(stored == 0 || num_card == 0) mensagemCartaoNaoAut();
   }
 }
 
