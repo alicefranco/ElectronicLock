@@ -1,54 +1,43 @@
-/*
-Many thanks to nikxha from the ESP8266 forum
-*/
-#include <Arduino.h>
 #include <ArduinoJson.h>
+#include <aJSON.h>
 #include <WiFi.h>
 #include <SPI.h>
-#include "MFRC522.h"
+#include <MFRC522.h>
 #include <HTTPClient.h>
-#include <aJSON.h>
 #include <LiquidCrystal_I2C.h>
 
-/* wiring the MFRC522 to ESP8266 (ESP-12)
-RST     = GPIO5
-SDA(SS) = GPIO4
-MOSI    = GPIO13
-MISO    = GPIO12
-SCK     = GPIO14
-GND     = GND
-3.3V    = 3.3V
-*/
-
+//define pins
 #define RST_PIN  17  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
 #define SS_PIN  5
-
-
-
-// SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
 #define TRAVA 15
+#define LED_C 26
+#define LED_O 27
 
+//connection parameters
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermoaju2017se"; // change according to your Network
 const char *httpdestinationauth = "http://clinicaapi.gear.host/token";// "http://httpbin.org/post"; // //
 const char *httpdestination = "http://clinicaapi.gear.host/api/cartoes_RFID/verifyrfid";
 
-
-MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
-LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
-
+//status vars
 int tr_dest = 1;
 int connected = 0;
+String st = "false";
 
+//card vars
 int num_card;
-String saved_cards[20];
+String saved_cards[100];
 
+//server parameters
 String grant_type = "password";
 String UserName = "sala2";
 String password = "@Sala2";
-
 String ID_Local_Acesso = "2";
-String st = "false";
+
+
+//init instances LCD and RFID
+MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
+LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
 
 StaticJsonBuffer<1000> b;
 JsonObject* payload = &(b.createObject());
@@ -57,16 +46,19 @@ void setup() {
   //saved cards
   num_card = 0;
 
-
   //Wire.begin(2,0);
   lcd.begin();
   lcd.clear();
   lcd.noBacklight();
 
   pinMode(TRAVA, OUTPUT); //Initiate lock
+  pinMode(LED_C, OUTPUT); //LED connection indicator
+  pinMode(LED_O, OUTPUT); // LED system on indicator
   digitalWrite(TRAVA, LOW); //set locked( by default
+  digitalWrite(LED_C, LOW); //set LED_C default state
+  digitalWrite(LED_O, HIGH); //set LED_O default state
+  
   tr_dest = 1; //door locked
-
 
   if(WiFi.status() != WL_CONNECTED){
     WiFi.begin(ssid, pass); // Initialize wifi connection
@@ -87,6 +79,8 @@ void setup() {
     Serial.print(".");
   }
   if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(LED_C, HIGH);
+    digitalWrite(LED_O, LOW);
     mensagemConectado();
     connected = 1;
   }
@@ -105,6 +99,15 @@ void setup() {
 }
 
 void loop() {
+  //status led setup
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(LED_C, HIGH);
+    digitalWrite(LED_O, LOW);
+  }
+  else{ 
+    digitalWrite(LED_C, LOW);
+    digitalWrite(LED_O, HIGH);
+  }
 
   // Look for new cards
   while ( ! mfrc522.PICC_IsNewCardPresent()) {
