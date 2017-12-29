@@ -14,10 +14,10 @@
 #define LED_O 27
 
 //connection parameters
-const char *ssid =  "APPis";//"Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
-const char *pass =  "appis"; //"dermoaju2017se"; // change according to your Network
-const char *httpdestinationauth = "http://clinicaapi.gear.host/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://clinicaapi.gear.host/api/cartoes_RFID/verifyrfid";
+const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
+const char *pass =  "dermoaju2017se"; // change according to your Network
+const char *httpdestinationauth = "http://192.168.15.59:8081/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://192.168.15.59:8081/api/cartoes_RFID/verifyrfid";
 
 //status vars
 int connected = 0;
