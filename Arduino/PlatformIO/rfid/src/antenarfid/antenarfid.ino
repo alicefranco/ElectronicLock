@@ -5,7 +5,7 @@
 #include "MFRC522.h"
 #include <ESP8266HTTPClient.h>
 #include <aJSON.h>
-#include <LiquidCrystal_I2C.h>
+//#include <LiquidCrystal_I2C.h>
 #include <SoftwareSerial.h>
 #include <Ultrasonic.h>
 
@@ -19,10 +19,10 @@
 #define pino_echo 4
 
 //connection parameters
-const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
+const char *ssid =  "Dermoestetica" ;// change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermoaju2017se"; // change according to your Network
-const char *httpdestinationauth = "http://clinicaapi.gear.host/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://clinicaapi.gear.host/api/cartoes_RFID/verifyrfid";
+const char *httpdestinationauth = "http://192.168.15.59:8081/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://192.168.15.59:8081/api/cartoes_RFID/verifyrfid";
 
 
 //auxs
@@ -32,14 +32,16 @@ unsigned char next;
 
 //tag vars
 int num_card;
+int const num_card_t = 2;
 int long_tag;
-String saved_cards[100];
+String saved_cards[num_card_t];
 unsigned char card[15];
 
 //stats vars
 int tr_dest = 1;
 int connected = 0;
 int start = 0;
+int online, stored;
 
 //US aux vars
 long time1, time2;
@@ -93,13 +95,19 @@ void setup() {
   }
   if (WiFi.status() == WL_CONNECTED) {
 
-    Serial.println(F("WiFi conectado."));
+    Serial.println("Wifi conectado.");
     delay(1000);
     connected = 1;
     digitalWrite(LED_C, HIGH);
     digitalWrite(LED_O, LOW);
   }
-
+  else{
+    Serial.println("Wifi não conectado.");
+    connected = 0;  
+    digitalWrite(LED_C, LOW);
+    digitalWrite(LED_O, HIGH);
+  }
+  /*
   //if connection is established, gets ready to ready tag
   if(connected == 1){
     Serial.println(F("======================================================"));
@@ -110,8 +118,8 @@ void setup() {
   else{
     delay(1000);
     connected = 0;
-  }
-
+  }*/
+  mensagemInicial();
   //time setup
   time1 = millis();
   time2 = millis();
@@ -122,10 +130,12 @@ void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     digitalWrite(LED_C, HIGH);
     digitalWrite(LED_O, LOW);
+    connected = 1;
   }
   else{ 
     digitalWrite(LED_C, LOW);
     digitalWrite(LED_O, HIGH);
+    connected = 0;
   }
 
   //timing 
@@ -171,20 +181,10 @@ void loop() {
       for(int i = 0; i<15; i++){
         rfid += String(card[i], HEX);
       }
+      Serial.println(rfid);
 
-      //check if the tag is already stored
-      int stored = 0;
-      for(int i = 0; i < num_card; i++) {
-        if(saved_cards[i] == rfid){
-          stored = 1;
-          break;
-        }
-      }
-
-      //if the tag is not stored check if it is registered
-      int online = 0;
-      if(stored == 0){
-        Serial.println(rfid);
+      if(connected){
+        //check if the tag is registered
         String messageAuth = createForm();
         httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
         if(httpCode == 200){
@@ -192,27 +192,42 @@ void loop() {
           String access_token = (*payload)["access_token"];
           String token_type = (*payload)["token_type"];
           String header = token_type + " " + access_token;
-
+  
           httpCode = sendPOST(httpdestination, header, message, true);
           if(httpCode == 200){
             online = 1;
             saved_cards[num_card] = rfid;
             num_card++;
+            if(num_card >= num_card_t) num_card = 0;
           }
           else if(httpCode == 403){
+            online = 0;
             mensagemCartaoNaoAut();
             mensagemInicial();
           }
           else{
+            online = 0;
             mensagemAcaoNegada();
             mensagemInicial();
           }
         }
       }
-
-
+      else{
+        stored = 0;
+        for(int i = 0; i < num_card; i++){
+          if(saved_cards[i] == rfid){
+            stored = 1;
+            break;
+          }
+        }
+      }
+      Serial.print("connected: ");
+      Serial.println(connected);
+      Serial.print("online: ");
+      Serial.println(online);
+ 
       //open the door
-      if(stored || online){
+      if(online || stored){
         digitalWrite(TRAVA, HIGH);
         mensagemEntradaLiberada();
         delay(5000);
@@ -229,6 +244,10 @@ void loop() {
         //lock door
         digitalWrite(TRAVA, LOW);
         mensagemPortaTravada();
+        mensagemInicial();
+      }
+      else{
+        mensagemCartaoNaoAut();
         mensagemInicial();
       }
     }
