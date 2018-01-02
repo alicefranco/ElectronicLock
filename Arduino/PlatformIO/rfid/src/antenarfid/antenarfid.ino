@@ -1,12 +1,12 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <ESP8266WiFi.h>
-#include <SPI.h>
-#include "MFRC522.h"
-#include <ESP8266HTTPClient.h>
 #include <aJSON.h>
+#include <WiFi.h>
+#include <SPI.h>
+#include <MFRC522.h>
+#include <HTTPClient.h>
 //#include <LiquidCrystal_I2C.h>
-#include <SoftwareSerial.h>
+#include <HardwareSerial.h>
 #include <Ultrasonic.h>
 
 //led and lock pins
@@ -54,10 +54,11 @@ String UserName = "sala2";
 String password = "@Sala2";
 
 String ID_Local_Acesso = "1";
-String stat = "false";
+String st = "false";
 
 //init
-SoftwareSerial serialArtificial(15, 16, false, 256); //1º TX do leitor, 2º RX do leitor
+//SoftwareSerial serialArtificial(15, 16, false, 256); //1º TX do leitor, 2º RX do leitor
+HardwareSerial serialArtificial(0);
 Ultrasonic ultrasonic(pino_trigger, pino_echo);
 
 StaticJsonBuffer<1000> b;
@@ -78,6 +79,7 @@ void setup() {
 
   Serial.begin(9600);    // Initialize serial communications
   serialArtificial.begin(9600);
+  serialArtificial.flush();
 
   delay(250);
   Serial.println(F("Conectando...."));
@@ -138,10 +140,17 @@ void loop() {
     connected = 0;
   }
 
+  
+  serialArtificial.begin(9600);
   //timing 
   if((start == 0) || ((millis() - time1) >= 5000)){
     delay(1000);
     //read a tag with 14 or 15 digits (HEX)
+    
+    if(serialArtificial.available() !=0){
+      Serial.print("available: ");
+      Serial.println(serialArtificial.available());
+    }
     if(serialArtificial.available() > 0 ){
       start = 1;
       time1 = millis();
@@ -188,7 +197,7 @@ void loop() {
         String messageAuth = createForm();
         httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
         if(httpCode == 200){
-          String message = createMsgUrlEnc(rfid, stat);
+          String message = createMsgUrlEnc(rfid, st);
           String access_token = (*payload)["access_token"];
           String token_type = (*payload)["token_type"];
           String header = token_type + " " + access_token;
@@ -252,7 +261,8 @@ void loop() {
       }
     }
   }
-  else serialArtificial.flush();
+  serialArtificial.flush();
+  serialArtificial.end();
 }
 
 
@@ -299,9 +309,9 @@ String createForm(){
   return form;
 }
 
-String createMsgUrlEnc(String rfid, String stat){
+String createMsgUrlEnc(String rfid, String st){
   String form = "RFID=" + rfid + "&"
-    + "Status=" + stat + "&"
+    + "Status=" + st + "&"
     +"ID_Local_Acesso=" + ID_Local_Acesso;
   return form;
 }
