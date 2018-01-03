@@ -82,7 +82,7 @@ void setup() {
   serialArtificial.flush();
 
   delay(250);
-  Serial.println(F("Conectando...."));
+  Serial.println("Conectando....");
 
   //connection initialization
   if(WiFi.status() != WL_CONNECTED){
@@ -96,19 +96,22 @@ void setup() {
     Serial.print(".");
   }
   if (WiFi.status() == WL_CONNECTED) {
-
     Serial.println("Wifi conectado.");
     delay(1000);
     connected = 1;
     digitalWrite(LED_C, HIGH);
     digitalWrite(LED_O, LOW);
+   
   }
   else{
     Serial.println("Wifi não conectado.");
     connected = 0;  
     digitalWrite(LED_C, LOW);
     digitalWrite(LED_O, HIGH);
-  }
+    
+  } 
+  mensagemInicial();
+  delay(1000);
   /*
   //if connection is established, gets ready to ready tag
   if(connected == 1){
@@ -121,6 +124,7 @@ void setup() {
     delay(1000);
     connected = 0;
   }*/
+  Serial.println("AQQQuiiiiii");
   mensagemInicial();
   //time setup
   time1 = millis();
@@ -318,7 +322,7 @@ String createMsgUrlEnc(String rfid, String st){
 
 //Serial messages
 void mensagemInicial() {
-  Serial.println(F("Aproxime seu cartão"));
+  Serial.println("Aproxime seu cartão");
 }
 
 void mensagemEntradaLiberada(){
@@ -332,11 +336,11 @@ void mensagemPortaTravada(){
 }
 
 void mensagemAcaoNegada(){
-  Serial.println(F("Ação negada!"));
+  Serial.println("Ação negada!");
   delay(1000);
 }
 
 void mensagemCartaoNaoAut(){
-  Serial.println(F("Cartão não autorizado!"));
+  Serial.println("Cartão não autorizado!");
   delay(1000);
 }
