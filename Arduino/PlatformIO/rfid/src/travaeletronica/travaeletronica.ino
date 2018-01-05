@@ -16,8 +16,8 @@
 //connection parameters
 const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
 const char *pass =  "dermoaju2017se"; // change according to your Network
-const char *httpdestinationauth = "http://192.168.15.59:8081/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://192.168.15.59:8081/api/cartoes_RFID/verifyrfid";
+//const char *httpdestinationauth = "http://192.168.15.59:8081/token";// "http://httpbin.org/post"; // //
+const char *httpdestination = "http://www.appis.com.br/pontoapi/api/registro_acessos";
 
 //status vars
 int connected = 0;
@@ -143,73 +143,49 @@ void loop() {
   Serial.println("card");
   Serial.println(card);
 
-  //char aux1[11] ;
-  //char aux2[11] ;
-
-  //saved_cards[0].toCharArray(aux1, 15);
-  //card.toCharArray(aux2, 15);
-
+  //system conected
   if(connected == 1){
     int httpCode;
-  
-  
     String rfid = card;
-    String messageAuth = createForm();
-    httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
-  
-  
-   if(httpCode == 200){
-      String message = createMsgUrlEnc(rfid, st);
-      String access_token = (*payload)["access_token"];
-      String token_type = (*payload)["token_type"];
-      String header = token_type + " " + access_token;
-      if(st == "true"){
-        st = "false";
-      }
-      else if(st == "false"){
-        st = "true";
-      }
-  
-  
-      httpCode = sendPOST(httpdestination, header, message, true);
-      if(httpCode == 200){
-        saved_cards[num_card] = card;
-        num_card++;
-        //Locked door, unlock it
-        if (st == "true") {
-          digitalWrite(TRAVA, HIGH);
-          mensagemEntradaLiberada();
-          delay(3000);
-          mensagemInicial();
-        }
-        //Unlocked door, lock it.
-        else if(st == "false") {
-          digitalWrite(TRAVA, LOW);
-          mensagemPortaTravada();
-          delay(3000);
-          mensagemInicial();
-        }
-      }
-      else if(httpCode == 403){
-        if(st == "true") st = "false";
-        else if(st == "false") st = "true";
-        mensagemCartaoNaoAut();
-        delay(3000);
+
+    String message = createMsgUrlEnc(rfid, st);
+    if(st == "true"){
+      st = "false";
+    }
+    else if(st == "false"){
+      st = "true";
+    }
+
+
+    httpCode = sendPOST(httpdestination, message);
+    if(httpCode == 201){
+      saved_cards[num_card] = card;
+      num_card++;
+      //Locked door, unlock it
+      if (st == "true") {
+        digitalWrite(TRAVA, HIGH);
+        mensagemEntradaLiberada();
         mensagemInicial();
       }
-      else{
-        if(st == "true") st = "false";
-        else if(st == "false") st = "true";
-        mensagemAcaoNegada();
-        delay(3000);
+      //Unlocked door, lock it.
+      else if(st == "false") {
+        digitalWrite(TRAVA, LOW);
+        mensagemPortaTravada();
         mensagemInicial();
-      }//*/
+      }
+    }
+    else if(httpCode == 403){
+      if(st == "true") st = "false";
+      else if(st == "false") st = "true";
+      mensagemCartaoNaoAut();
+      mensagemInicial();
     }
     else{
+      if(st == "true") st = "false";
+      else if(st == "false") st = "true";
       mensagemAcaoNegada();
-      delay(3000);
       mensagemInicial();
-    } 
+    }
   }
   //opening door offline
   else{
@@ -221,14 +197,12 @@ void loop() {
         if(st = "false"){
           digitalWrite(TRAVA, HIGH);
           mensagemPortaTravada();
-          delay(3000);
           mensagemInicial();
           st = "true";
         }
         else if(st = "true"){
           digitalWrite(TRAVA, LOW);
           mensagemPortaTravada();
-          delay(3000);
           mensagemInicial();
           st = "false";
         }
@@ -251,14 +225,14 @@ void mensagemInicial() {
 }
 
 //send to server
-int sendPOST(String httpdestination, String header, String body, bool auth){
+int sendPOST(String httpdestination, String body){
   int httpCode;
   if(WiFi.status()== WL_CONNECTED){   //Check WiFi connection status
 
       HTTPClient http;    //Declare object of class HTTPClient
 
       http.begin(httpdestination);
-      if(auth) http.addHeader("Authorization", header);
+      // if(auth) http.addHeader("Authorization", header);
       http.addHeader("Content-Type", "application/x-www-form-urlencoded");  //Specify content-type header
 
 
@@ -309,7 +283,7 @@ void mensagemEntradaLiberada(){
   lcd.print("Ola!");
   lcd.setCursor(0, 1);
   lcd.print("Entrada liberada");
-  delay(1000);
+  delay(2000);
 }
 
 void mensagemPortaTravada(){
@@ -317,7 +291,7 @@ void mensagemPortaTravada(){
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Porta travada.");
-  delay(1000);
+  delay(2000);
 }
 
 void mensagemAcaoNegada(){
@@ -325,7 +299,7 @@ void mensagemAcaoNegada(){
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Acao negada!");
-  delay(1000);
+  delay(2000);
 }
 
 void mensagemCartaoNaoAut(){
@@ -335,7 +309,7 @@ void mensagemCartaoNaoAut(){
   lcd.print("Cartao nao");
   lcd.setCursor(0, 1);
   lcd.print("autorizado.");
-  delay(1000);
+  delay(2000);
 }
 
 void mensagemConectado(){
@@ -343,7 +317,7 @@ void mensagemConectado(){
   lcd.clear();
   lcd.setCursor(0,0);
   lcd.print("Conectado.");
-  delay(3000);
+  delay(1000);
 }
 
 void mensagemNaoConectado(){
@@ -353,7 +327,7 @@ void mensagemNaoConectado(){
   lcd.print("Nao conectado.");
   lcd.setCursor(0,1);
   lcd.print("Tente novamente.");
-  delay(3000);
+  delay(2000);
 }
 
 void mensagemConectando(){
