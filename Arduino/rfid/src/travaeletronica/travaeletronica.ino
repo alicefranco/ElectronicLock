@@ -1,6 +1,3 @@
-/*
-Many thanks to nikxha from the ESP8266 forum
-*/
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
@@ -8,7 +5,12 @@ Many thanks to nikxha from the ESP8266 forum
 #include "MFRC522.h"
 #include <ESP8266HTTPClient.h>
 #include <aJSON.h>
-#include <LiquidCrystal_I2C.h>
+#include <DS1307.h>
+
+
+extern "C" {
+#include "user_interface.h"
+}
 
 /* wiring the MFRC522 to ESP8266 (ESP-12)
 RST     = GPIO5
@@ -20,224 +22,446 @@ GND     = GND
 3.3V    = 3.3V
 */
 
-#define RST_PIN  5  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
-#define SS_PIN  4  // SDA-PIN für RC522 - RFID - SPI - Modul GPIO4
-#define TRAVA 15
 
-const char *ssid =  "Dermoestetica";     // change according to your Network - cannot be longer than 32 characters!
-const char *pass =  "dermoaju2017se"; // change according to your Network
-const char *httpdestinationauth = "http://clinicaapi.gear.host/token";// "http://httpbin.org/post"; // //
-const char *httpdestination = "http://clinicaapi.gear.host/api/cartoes_RFID/verifyrfid";
+//define pins
+#define RST_PIN 5  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
+#define SS_PIN  4
+
+#define TRAVA 0
+#define BUZZER 2
+#define LED_WOFF 10
+#define LED_WON 9
+#define LED_PR 3
+#define LED_PG 1
+#define CLK1 16 //SDA
+#define CLK2 15 //SCL
 
 
+//auth parameters
+const char *ssid = "Dermoestetica Visitantes";
+const char *pass = "dermo2018";
+const char *httpdestination = "http://www.appis.com.br/pontosys/api/ponto_funcionarios"; //http://192.168.15.26:8081
+//const char *httpdestination-tags = "http://www.appis.com.br/pontosys/api/cartoes_rfid/alltags;" //http://192.168.15.26:8081
+
+//card vars
+int num_card, num_card_logs, logs_max;
+const int num_max = 10;
+String saved_cards[num_max];
+String logs[num_max][2];
+
+//status vars
+String hora = "00:00:00";
+String data = "01.01.18";
+int attempts = 0;
+bool start = false;
+
+//bool conectado = false;
+//int tentativas = 0;
+
+//init
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
-LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
+//DS1307 rtc(CLK1, CLK2); //SDA, SCL
 
-int tr_dest = 1;
-int connected = 0;
+//StaticJsonBuffer<1000> b;
+//JsonObject* payload = &(b.createObject());
 
-int num_card;
-String saved_cards[20];
+void mensagemConectado(){
+  //hora = rtc.getTimeStr();
+  //data = rtc.getDateStr(FORMAT_SHORT);
+  Serial.print(formatTime(hora, data));
+  Serial.println(" Conectado.");
+  
+  //lcd.clear();
+  //lcd.setCursor(0,0);
+  //lcd.print("Conectado.");
+  delay(1000);
+}
 
-String grant_type = "password";
-String UserName = "sala2";
-String password = "@Sala2";
+void mensagemNaoConectado(){
+  //hora = rtc.getTimeStr();
+  //data = rtc.getDateStr(FORMAT_SHORT);
+  Serial.print(formatTime(hora, data));
+  Serial.println(" Não conectado.");
+  
+  //lcd.clear();
+  //lcd.setCursor(0,0);
+  //lcd.print("Nao conectado.");
+  //lcd.setCursor(0,1);
+  //lcd.print("Conectando...");
+  //delay(2000);
+}
 
-String ID_Local_Acesso = "2";
-String stat = "false";
+class Wifi
+{
+  public:
+  Wifi(char *ssid,
+    char *senha)
+  {
+    this->ssid = ssid;
+    this->senha = senha;
+    this->tentativas = 0;
+    this->conectado = true;
 
-StaticJsonBuffer<1000> b;
-JsonObject* payload = &(b.createObject());
+    WiFi.begin(this->ssid, this->senha);
+  }
+
+  void conectar()
+  {
+    int status = WiFi.status();
+    if (status != WL_CONNECTED) {
+      if (this->conectado)
+      {
+        this->conectado = false;
+        mensagemNaoConectado();
+        WiFi.disconnect();
+        WiFi.begin(this->ssid, this->senha);
+      }
+      
+      
+      if (this->tentativas > 1200)
+      {
+        mensagemNaoConectado();
+        WiFi.disconnect();
+        WiFi.begin(this->ssid, this->senha);
+        this->tentativas = 0;
+      }
+
+      this->tentativas++;
+    }
+    else if (!conectado && WiFi.status() == WL_CONNECTED)
+    {
+      mensagemConectado();
+      mensagemInicial();
+      this->conectado = true;
+    }
+  }
+
+  private:
+    char *ssid;
+    char *senha;
+    int tentativas;
+    bool conectado;
+};
+
+Wifi *wifi = new Wifi("Dermoestetica Visitantes", "dermo2018"); 
+//Wifi *wifi = new Wifi("GVT-0FAD", "0073440455"); 
+//Wifi *wifi = new Wifi("CONECTE", "conecte2018");
+
+
+
+
 
 void setup() {
+//  //Aciona o relogio
+//  rtc.halt(false);
+//  
+//  //As linhas abaixo setam a data e hora do modulo
+//  //e podem ser comentada apos a primeira utilizacao
+//  //rtc.setDOW(THURSDAY);      //Define o dia da semana
+//  //rtc.setTime(14, 37, 0);     //Define o horario
+//  //rtc.setDate(16, 02, 2018);   //Define o dia, mes e ano
+//  
+//  //Definicoes do pino SQW/Out
+//  rtc.setSQWRate(SQW_RATE_1);
+//  rtc.enableSQW(true);
+  
   //saved cards
   num_card = 0;
+  num_card_logs = 0;
+  
+  //ledcSetup(channel, 2000, resolution);
+  //ledcAttachPin(BUZZER, channel); 
 
-
-  Wire.begin(2,0);
-  lcd.init();
-  lcd.backlight();
-
-  pinMode(TRAVA, OUTPUT); //Initiate lock
-  digitalWrite(TRAVA, LOW); //set locked( by default
-  tr_dest = 1; //door locked
-
-
-  if(WiFi.status() != WL_CONNECTED){
-    WiFi.begin(ssid, pass); // Initialize wifi connection
-  }
-
+  pinMode(LED_WON, OUTPUT);
+  pinMode(LED_WOFF, OUTPUT);
+//  pinMode(LED_PR, OUTPUT);
+//  pinMode(LED_PG, OUTPUT);
+//
+//  ledConnection();
+  
+  pinMode(BUZZER, OUTPUT); //Initiate lock
+  pinMode(TRAVA, OUTPUT);
+  
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
-  mensagemConectando();
-
+  
+  //connection init
   SPI.begin();           // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
+  
+  mensagemInicial();
 
-
-  int retries = 0;
-  while ((WiFi.status() != WL_CONNECTED) && (retries < 100)) {
-    retries++;
-    delay(500);
-    Serial.print(".");
-  }
-  if (WiFi.status() == WL_CONNECTED) {
-    mensagemConectado();
-    connected = 1;
-  }
-
-  //if connected, gets read to read cards
-  if(connected == 1){
-    Serial.println(F("======================================================"));
-    Serial.println(F("Pronto para ler cartão UID: \n"));
-    mensagemInicial(); //Print init message
-    delay(3000);
-  }
-  else{
-    mensagemNaoConectado();
-    connected = 0;
-  }
+  //HTTPConect();
 }
 
 void loop() {
+   wifi->conectar();
+
+   //ledConnection();
 
   // Look for new cards
-  while ( ! mfrc522.PICC_IsNewCardPresent()) {
-    delay(50);
-    return;
+  String rfid = readCard();
+  Serial.println(rfid);
+  //if connection is established
+  if(rfid == "error"){
+    mensagemTagProblem();
+    mensagemInicial();
   }
-  // Select one of the cards
-  while( ! mfrc522.PICC_ReadCardSerial()) {
-    delay(50);
-    return;
+  else if(WiFi.status() == WL_CONNECTED){
+    newAccess(rfid);
   }
-  //Show UID on serial monitor
-  Serial.print(F("UID tag : "));
-  String content = "";
-  for (byte i = 0; i < mfrc522.uid.size; i++)
-  {
-    Serial.print(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " ");
-    Serial.print(mfrc522.uid.uidByte[i], HEX);
-    content.concat(String(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " "));
-    content.concat(String(mfrc522.uid.uidByte[i], HEX));
-  }
-  Serial.println();
-  Serial.println(F("Message : "));
-  content.toUpperCase();
-
-
-  String card = content.substring(1);
-  Serial.println("card");
-  Serial.println(card);
-
-  char aux1[11] ;
-  char aux2[11] ;
-
-  saved_cards[0].toCharArray(aux1, 15);
-  card.toCharArray(aux2, 15);
-
-  int httpCode;
-
-
-  String rfid = card;
-  String messageAuth = createForm();
-  httpCode = sendPOST(httpdestinationauth, "", messageAuth, false);
-
-
- if(httpCode == 200){
-    String message = createMsgUrlEnc(rfid, stat);
-    String access_token = (*payload)["access_token"];
-    String token_type = (*payload)["token_type"];
-    //aJsonObject* token_ptr = aJson.getObjectItem(payload, "access_token");
-    //aJsonObject* token_type_ptr = aJson.getObjectItem(payload, "token_type");
-    //String token = token_ptr->valuestring;
-    //String token_type = token_type_ptr->valuestring;
-    String header = token_type + " " + access_token;
-    if(stat == "true"){
-      stat = "false";
-    }
-    else if(stat == "false"){
-      stat = "true";
-    }
-
-
-    httpCode = sendPOST(httpdestination, header, message, true);
-    if(httpCode == 200){
-      saved_cards[num_card] = card;
-      num_card++;
-      //Locked door, unlock it
-      if (stat == "true") {
-        tr_dest = 0; //door unlocked
-        digitalWrite(TRAVA, HIGH);
-        mensagemEntradaLiberada();
-        delay(3000);
-        mensagemInicial();
-      }
-      //Unlocked door, lock it.
-      else if(stat == "false") {
-        tr_dest = 1; //door locked
-        digitalWrite(TRAVA, LOW);
-        mensagemPortaTravada();
-        delay(3000);
-        mensagemInicial();
-      }
-    }
-    else if(httpCode == 403){
-      if(stat == "true") stat = "false";
-      else if(stat == "false") stat = "true";
-      mensagemCartaoNaoAut();
-      delay(3000);
-      mensagemInicial();
-    }
-    else{
-      if(stat == "true") stat = "false";
-      else if(stat == "false") stat = "true";
-      mensagemAcaoNegada();
-      delay(3000);
-      mensagemInicial();
-    }//*/
-  }
-  else{
-    mensagemAcaoNegada();
-    delay(3000);
+  //if not connected
+  else if(rfid != "timeout" && WiFi.status() != WL_CONNECTED){
+    logCard(rfid, false);
     mensagemInicial();
   }
 }
 
+void newAccess(String rfid){
+  //hora = rtc.getTimeStr();
+  //data = rtc.getDateStr(FORMAT_SHORT);
+  String message = createMsgUrlEnc(rfid, formatTime(hora, data));
 
-//init msg
-void mensagemInicial() {
-  Serial.println(F("Aproxime seu cartão"));
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Aproxime seu");
-  lcd.setCursor(0, 1);
-  lcd.print("cartao do leitor");
+  //connection to server
+  int httpCode = sendPOST(httpdestination, message);
+  Serial.println(httpCode);
+
+  if(rfid != "timeout"){
+    if(httpCode == 200){
+      //String datainfo = (*payload)["data"];
+      saveCard(rfid);
+      digitalWrite(TRAVA, HIGH);
+      mensagemEntradaLiberada();
+      delay(1000);
+      digitalWrite(TRAVA, LOW);
+      mensagemPortaTravada();
+      
+      mensagemInicial();
+    }
+    else if(httpCode == 403){
+      mensagemCartaoNaoAut();
+      mensagemInicial();
+    }
+    //connection failed, try again
+    else if(httpCode == -11){
+      delay(1);
+      logCard(rfid, true);
+      mensagemInicial(); 
+    }
+    else if(httpCode == -1){
+      logCard(rfid, false);
+      mensagemInicial();
+    }
+  }
+}
+ 
+String readCard(){
+  int attempts1 = 0;
+  int attempts2 = 0;
+  bool erro = false;
+  while (attempts1 < 6000 && !mfrc522.PICC_IsNewCardPresent()) {
+    wifi->conectar(); 
+    //HTTPConect();
+    debugIsOnTheTable();
+    backupCards();
+    delay(50);
+    attempts1++; 
+    //return;
+  }
+  
+  // Select one of the cards
+  while( attempts2 < 10 && !mfrc522.PICC_ReadCardSerial()) {
+    wifi->conectar();
+    delay(50);
+    attempts2++;
+    //return;
+  }
+
+  //return if an error reading the card ocurred
+  if(attempts1 >= 6000){
+    attempts1 = 0;
+    return "timeout";
+  }
+  else if(attempts2 >= 10) 
+  {
+    attempts2 = 0;
+    return "error";
+  }
+ 
+  
+  //Show UID on serial monitor
+  String content = "";
+  for (byte i = 0; i < mfrc522.uid.size; i++)
+  {
+    //Serial.print(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " ");
+    //Serial.print(mfrc522.uid.uidByte[i], HEX);
+    content.concat(String(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " "));
+    content.concat(String(mfrc522.uid.uidByte[i], HEX));
+  }
+  content.toUpperCase();
+  String card = content.substring(1);
+  return card;
 }
 
-//send to server
-int sendPOST(String httpdestination, String header, String body, bool auth){
+void saveCard(String rfid){
+  bool already_saved = false;
+  for(int i = 0; i < num_max; i++){
+    if(saved_cards[i] == rfid){  
+      already_saved = true;
+    }
+  }    
+  if(already_saved == false){
+    //hora = rtc.getTimeStr();
+    //data = rtc.getDateStr(FORMAT_SHORT);
+    Serial.print(formatTime(hora, data));
+    Serial.println(" Cartão salvo.");                           
+    saved_cards[num_card] = rfid;
+    if(num_card < num_max - 1){
+        num_card++;   
+    }
+    else num_card = 0;
+  }
+  else already_saved = false;
+  
+  //debug
+  for(int i = 0; i < num_max; i++){
+    Serial.print("saved_cards[i]: ");
+    Serial.println(saved_cards[i]);
+  }   
+}
+
+void debugIsOnTheTable(){
+  uint32_t free = system_get_free_heap_size();
+  //hora = rtc.getTimeStr();
+  //Serial.println(hora.substring(6,8));
+  if(hora.substring(6,8) == "01"){
+  
+    //data = rtc.getDateStr(FORMAT_SHORT);
+    
+    Serial.print(formatTime(hora, data));
+    Serial.print(" Free memory: ");
+    Serial.println(free);
+  
+  }
+  //wake watchdog
+  delay(1);
+  ESP.wdtFeed();
+}
+
+void logCard(String rfid, bool tryagain){
+  bool stored = false;
+  bool already_saved = false;
+  //check if the card was already locally registered
+  for(int i = 0; i < num_max; i++){
+    //if saved, store it in the logs
+    if(saved_cards[i] == rfid){
+      logs[num_card_logs][0] = rfid;
+      
+      //hora = rtc.getTimeStr();
+      //data = rtc.getDateStr(FORMAT_SHORT);
+      Serial.print(formatTime(hora, data));
+      Serial.print(" Cartão salvo no log de acesso: ");
+      Serial.println(rfid);
+      
+      logs[num_card_logs][1] = formatTime(hora, data);
+      digitalWrite(TRAVA, HIGH);
+      mensagemEntradaLiberada();
+      delay(1000);
+      digitalWrite(TRAVA, LOW);
+      mensagemPortaTravada();
+
+      //check array limits
+      if(num_card_logs < num_max - 1){
+          num_card_logs++;  
+      }
+      else num_card_logs = 0;
+      if(logs_max < num_max - 1){
+          logs_max++;  
+      }
+      stored = true;
+      break;
+    }
+  }
+  
+  Serial.println("\nLOGS DE ACESSO");
+  for(int i = 0; i < logs_max; i++){
+    Serial.print("logs[i][0]: ");
+    Serial.println(logs[i][0]);
+  }
+  Serial.print("\n");
+  
+  //if not stored locally
+  if(stored == false && tryagain){
+    newAccess(rfid);
+  }
+  else if(stored == false && !tryagain){
+    mensagemCartaoNaoAut();
+    mensagemInicial();
+  }
+  stored = false;
+}
+
+void backupCards(){
+  int num_ns = 0;
+  //hora = rtc.getTimeStr();
+  //data = rtc.getDateStr(FORMAT_SHORT);
+  int numHora = (hora.substring(3, 5)).toInt();
+  //if((hora.substring(0, 5) == "00:00")  && WiFi.status() == WL_CONNECTED){
+  if((numHora > 00)  && WiFi.status() == WL_CONNECTED){
+      
+    while((logs_max > 0) || (num_ns > 0)){
+      Serial.print(formatTime(hora, data));
+      delay(1);
+      for(int i = 0; i<logs_max; i++){
+        delay(1);
+        int httpCode;
+        String rfid = logs[i][0];
+        String datahora = logs[i][1];
+        String message = createMsgUrlEnc(rfid, datahora);
+        
+        //connection to server
+        httpCode = sendPOST(httpdestination, message);
+        Serial.print(httpCode);
+        if(httpCode == 200){
+          Serial.println(" Backup OK.");
+        }  
+        else if(httpCode == 403){
+          Serial.println(" Cartão não autorizado.");
+        }
+        else{
+          Serial.println(" Backup falhou."); 
+          logs[num_ns][0] = rfid;
+          if(num_ns > num_max - 1) num_ns = 0;
+          else num_ns++;
+        }
+      } 
+      logs_max = num_ns;
+      num_ns = 0;
+    }
+  }
+}
+
+int sendPOST(String httpdestination, String body){
   int httpCode;
   if(WiFi.status()== WL_CONNECTED){   //Check WiFi connection status
 
       HTTPClient http;    //Declare object of class HTTPClient
 
       http.begin(httpdestination);
-      if(auth) http.addHeader("Authorization", header);
       http.addHeader("Content-Type", "application/x-www-form-urlencoded");  //Specify content-type header
 
 
       httpCode = http.POST(body);   //Send the request
       String pl = http.getString();                  //Get the response payload
-      char pl2[1000];
-      pl.toCharArray(pl2, 1000);
+      //char pl2[1000];
+      //pl.toCharArray(pl2, 1000);
 
 
-      JsonObject* x;
-      StaticJsonBuffer<1000> JSONBuffer;   //Memory pool
-      x = &(JSONBuffer.parseObject(pl2)); //Parse message
+      //JsonObject* x;
+      //StaticJsonBuffer<1000> JSONBuffer;   //Memory pool
+      //x = &(JSONBuffer.parseObject(pl2)); //Parse message
 
-      payload = x;
+      //payload = x;
 
       Serial.println(httpCode);   //Print HTTP return code
       Serial.println(pl);    //Print request response payload
@@ -252,78 +476,171 @@ int sendPOST(String httpdestination, String header, String body, bool auth){
     return httpCode;
 }
 
-String createForm(){
-  String form = "grant_type=" + grant_type + "&"
-    + "UserName=" + UserName + "&"
-    + "password=" + password;
-  return form;
-}
-
-String createMsgUrlEnc(String rfid, String stat){
-  String form = "RFID=" + rfid + "&"
-    + "Status=" + stat + "&"
-    +"ID_Local_Acesso=" + ID_Local_Acesso;
+String createMsgUrlEnc(String rfid, String datehour){
+  String form = "RFID=" + rfid;
+  form = form + "&Databackup=" + datehour;
   return form;
 }
 
 
-void mensagemEntradaLiberada(){
-  Serial.println("Entrada liberada.");
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Ola!");
-  lcd.setCursor(0, 1);
-  lcd.print("Entrada liberada");
-  delay(1000);
-}
 
-void mensagemPortaTravada(){
-  Serial.println("Porta travada.");
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Porta travada.");
-  delay(1000);
+//init msg
+void mensagemInicial() {
+  Serial.println(F("Aproxime seu cartão"));
+//  lcd.clear();
+//  lcd.setCursor(0, 0);
+//  lcd.print("Aproxime seu");
+//  lcd.setCursor(0, 1);
+//  lcd.print("cartao do leitor");
 }
 
 void mensagemAcaoNegada(){
-  Serial.println(F("Ação negada!"));
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Acao negada!");
-  delay(1000);
+  //hora = rtc.getTimeStr();
+  //data = rtc.getDateStr(FORMAT_SHORT);
+  Serial.print(formatTime(hora, data));
+  
+  Serial.println(" Ação negada!");
+//  lcd.clear();
+//  lcd.setCursor(0, 0);
+//  lcd.print("Acao negada!");
+  longBeep();
+  delay(2000);
+}
+
+
+void mensagemTagProblem(){
+  //hora = rtc.getTimeStr();
+  //data = rtc.getDateStr(FORMAT_SHORT);                  
+  Serial.print(formatTime(hora, data));
+  Serial.println(" Erro na leitura do cartao.");
+                     
+//  lcd.clear();
+//  lcd.setCursor(0,0);
+//  lcd.print("Erro na leitura");
+//  lcd.setCursor(0,1);
+//  lcd.print("do cartao.");
+  longBeep();
+  delay(2000);
+}
+
+void mensagemEntradaLiberada(){
+  //hora = rtc.getTimeStr();
+  //data = rtc.getDateStr(FORMAT_SHORT);
+  Serial.print(formatTime(hora, data));
+              
+  Serial.println(" Entrada liberada.");
+//  lcd.clear();
+//  lcd.setCursor(0, 0);
+//  lcd.print("Ola!");
+//  lcd.setCursor(0, 1);
+//  lcd.print("Entrada liberada");
+  //ledConnection();
+  digitalWrite(LED_PR, LOW);
+  digitalWrite(LED_PG, HIGH);
+  beep();
+  delay(2000);
+}
+
+void mensagemPortaTravada(){
+  //hora = rtc.getTimeStr();
+  //data = rtc.getDateStr(FORMAT_SHORT);
+  Serial.print(formatTime(hora, data));
+  
+  Serial.println(" Porta Travada.");
+//  lcd.clear();
+//  lcd.setCursor(0, 0);
+//  lcd.print("Ola!");
+//  lcd.setCursor(0, 1);
+//  lcd.print("Porta Travada");
+  //ledConnection();
+  digitalWrite(LED_PR, HIGH);
+  digitalWrite(LED_PG, LOW);
+  beep();
+  delay(2000);
 }
 
 void mensagemCartaoNaoAut(){
-  Serial.println(F("Cartão não autorizado!"));
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Cartao nao");
-  lcd.setCursor(0, 1);
-  lcd.print("autorizado.");
-  delay(1000);
+  //hora = rtc.getTimeStr();
+  //data = rtc.getDateStr(FORMAT_SHORT);
+  Serial.print(formatTime(hora, data));
+  
+  Serial.println(" Cartão não autorizado.");
+//  lcd.clear();
+//  lcd.setCursor(0, 0);
+//  lcd.print("Cartão não");
+//  lcd.setCursor(0, 1);
+//  lcd.print("autorizado.");
+  longBeep();
+  delay(2000);
 }
 
-void mensagemConectado(){
-  Serial.println(F("WiFi conectado."));
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("Conectado.");
-  delay(3000);
+/*void tone(int freq, float sec){
+  ledcWriteTone(channel, 2000);
+  ledcWrite(channel, freq);
+  delay(sec*1000);
+  ledcWrite(channel, 0);
 }
 
-void mensagemNaoConectado(){
-  Serial.println(F("Não conectado, tente novamente."));
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("Nao conectado.");
-  lcd.setCursor(0,1);
-  lcd.print("Tente novamente.");
-  delay(3000);
+void beep(){
+  tone(255, 0.1);
+  delay(100);
+  tone(255, 0.1);
 }
 
-void mensagemConectando(){
-  Serial.println(F("Conectando...."));
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("Conectando...");
+void longBeep(){
+  tone(255, 1);
+}*/
+
+void beep(){
+  tone(BUZZER, 3000);
+  delay(150);
+  noTone(BUZZER);
+  delay(100);
+  tone(BUZZER, 3000);
+  delay(150);
+  noTone(BUZZER);
 }
+
+void longBeep(){
+  tone(BUZZER, 3000);
+  delay(1500);
+  noTone(BUZZER);
+}
+
+/*void ledConnection(){
+  // put your main code here, to run repeatedly:
+  if(WiFi.status() == WL_CONNECTED){
+    digitalWrite(LED_WON, HIGH);
+    digitalWrite(LED_WOFF, LOW);
+    digitalWrite(LED_PR, HIGH);
+    digitalWrite(LED_PG, LOW);
+  }
+  //delay(1000);
+  else{
+    digitalWrite(LED_WON, LOW);
+    digitalWrite(LED_WOFF, HIGH);
+    digitalWrite(LED_PR, HIGH);
+    digitalWrite(LED_PG, LOW);
+   // delay(1000);
+  }
+}*/
+
+String formatTime(String hora, String data){
+  String datahora = "20" + data.substring(6, 8) + "-" + data.substring(3,5) + "-" + data.substring(0,2)+ " " + hora;
+  return datahora;
+}
+
+/*
+void HTTPConect(){
+  http.begin(httpdestination);
+  http.setTimeout(50);
+  http.setReuse(true);
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");  //Specify content-type header
+  http.addHeader("Connection", "Keep-Alive");  //Specify content-type header
+  http.addHeader("Cache-Control", "no-cache");
+}
+*/
+
+    
+
+
