@@ -152,7 +152,7 @@ String readCard(){
   int attempts1 = 0;
   int attempts2 = 0;
   bool erro = false;
-  while (attempts1 < 6000 && !mfrc522.PICC_IsNewCardPresent()) {
+  while (attempts1 < 10*60*1000 && !mfrc522.PICC_IsNewCardPresent()) {
     conectar(); 
 
     //sync time with NTP server
@@ -161,7 +161,7 @@ String readCard(){
     debugIsOnTheTable();
     //backup locally saved cards
     backupCards();
-    delay(50);
+    delay(1);
     attempts1++; 
     //return;
   }
@@ -169,7 +169,7 @@ String readCard(){
   // Select one of the cards
   while(attempts2 < 10 && !mfrc522.PICC_ReadCardSerial()) {
     conectar();
-    delay(50);
+    delay(1);
     attempts2++;
     //return;
   }
