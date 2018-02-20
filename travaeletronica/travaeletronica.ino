@@ -1,12 +1,10 @@
-
+#include <time.h>
 #include <ArduinoJson.h>
 #include <aJSON.h>
 #include <WiFi.h>
 #include <SPI.h>
 #include <MFRC522.h>
 #include <HTTPClient.h>
-//#include <LiquidCrystal_I2C.h>
-#include <DS1307.h>
 
 //define pins
 #define RST_PIN  17  // RST-PIN für RC522 - RFID - SPI - Modul GPIO5
@@ -17,18 +15,17 @@
 #define LED_WON 27
 #define LED_PR 32
 #define LED_PG 33
-//#define CLK1 0 //SDA
-//#define CLK2 2 //SCL
-
-//extern "C" {
-//#include "user_interface.h"
-//}
 
 //auth parameters
 const char *ssid = "Dermoestetica Visitantes";
 const char *pass = "dermo2018";
 const char *httpdestination = "http://www.appis.com.br/pontosys/api/ponto_funcionarios"; //http://192.168.15.26:8081
 //const char *httpdestination-tags = "http://www.appis.com.br/pontosys/api/cartoes_rfid/alltags;" //http://192.168.15.26:8081
+
+//clock parameters
+const char* NTP_SERVER = "br.pool.ntp.org";
+//const char* TZ_INFO    = "EST5EDT4,M3.2.0/02:00:00,M11.1.0/02:00:00";
+const char* TZ_INFO    = "UTC3,M3.2.0/02:00:00,M11.1.0/02:00:00";
 
 //card vars
 int num_card, num_card_logs, logs_max;
@@ -45,16 +42,13 @@ bool start = false;
 int channel = 0;
 int resolution = 8;
 
-//bool conectado = false;
-//int tentativas = 0;
-
 //init
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
-//LiquidCrystal_I2C lcd(0x3F,16,2);  //Create LCD instance
-//DS1307 rtc(CLK1, CLK2); //SDA, SCL
 
-StaticJsonBuffer<1000> b;
-JsonObject* payload = &(b.createObject());
+struct tm timeinfo;
+
+//StaticJsonBuffer<1000> b;
+//JsonObject* payload = &(b.createObject());
 
 void setup() {
   //saved cards
@@ -64,33 +58,24 @@ void setup() {
   ledcSetup(channel, 2000, resolution);
   ledcAttachPin(BUZZER, channel); 
 
+  //init local clock
+  configTzTime(TZ_INFO, NTP_SERVER);
+  // start wifi here
+  if (getLocalTime(&timeinfo, 10000)) {  // wait up to 10sec to sync
+    Serial.println(&timeinfo, "Time set: %B %d %Y %H:%M:%S (%A)");
+  } else {
+    Serial.println("Time not set");
+  }
+
+  
+  pinMode(BUZZER, OUTPUT); //Initiate lock
+  pinMode(TRAVA, OUTPUT);
   pinMode(LED_WON, OUTPUT);
   pinMode(LED_WOFF, OUTPUT);
   pinMode(LED_PR, OUTPUT);
   pinMode(LED_PG, OUTPUT);
 
-  ledConnection();
-  
-  //Wire.begin(2,0);
-  //lcd.begin();
-  //lcd.clear();
-  //lcd.noBacklight();
-
-  //Aciona o relogio
-  //rtc.halt(false);
-  
-  //As linhas abaixo setam a data e hora do modulo
-  //e podem ser comentada apos a primeira utilizacao
-  //rtc.setDOW(THURSDAY);      //Define o dia da semana
-  //rtc.setTime(15, 20, 0);     //Define o horario
-  //rtc.setDate(29, 01, 2018);   //Define o dia, mes e ano
-  
-  //Definicoes do pino SQW/Out
-  //rtc.setSQWRate(SQW_RATE_1);
-  //rtc.enableSQW(true);
-  
-  pinMode(BUZZER, OUTPUT); //Initiate lock
-  pinMode(TRAVA, OUTPUT);
+  digitalWrite(LED_PR, HIGH);
   
   Serial.begin(9600);    // Initialize serial communications
   delay(250);
@@ -101,109 +86,107 @@ void setup() {
 
   WiFi.begin(ssid, pass);
   mensagemInicial();
+  
+  //HTTPConect();
 }
 
 void loop() {
   conectar();
-  
-  ledConnection();
-  //getting real time
-  //hora = rtc.getTimeStr();
-  //data = rtc.getDateStr(FORMAT_SHORT);
 
-  Serial.println(hora);
-  Serial.println(data);
-  
   // Look for new cards
   String rfid = readCard();
-
+  Serial.println(rfid);
+  
   //if connection is established
-  if(rfid == ""){
+  if(rfid == "error"){
     mensagemTagProblem();
     mensagemInicial();
   }
   else if(WiFi.status() == WL_CONNECTED){
-    newAccess(rfid, false);
+    newAccess(rfid);
   }
-  //if not connected
-  else if(WiFi.status() != WL_CONNECTED){
-    logCard(rfid);
+ //if not connected
+  else if(rfid != "timeout" && WiFi.status() != WL_CONNECTED){
+    logCard(rfid, false);
     mensagemInicial();
   }
 }
 
-void newAccess(String rfid, bool secReq){
-  Serial.println("r11");
-  //hora = rtc.getTimeStr();
-  //data = rtc.getDateStr(FORMAT_SHORT);
-  String message = createMsgUrlEnc(rfid, formatTime(hora, data));
- 
+void newAccess(String rfid){
+  String message = createMsgUrlEnc(rfid, getLTime());
+
   //connection to server
   int httpCode = sendPOST(httpdestination, message);
+  Serial.println(httpCode);
 
-  if(httpCode == 200){
-    //String datainfo = (*payload)["data"];
-    saveCard(rfid);
-    
-    digitalWrite(TRAVA, HIGH);
-    mensagemEntradaLiberada();
-    delay(1000);
-    digitalWrite(TRAVA, LOW);
-    mensagemPortaTravada();
-    
-    mensagemInicial();
-  }
-  else if(httpCode == 403){
-    mensagemCartaoNaoAut();
-    mensagemInicial();
-  }
-  //connection failed, try again
-  else if ((httpCode == -11 || httpCode == -1) && secReq == false) {
-    logCard(rfid);
-    mensagemInicial();
-  }
-  else if(secReq){
-    mensagemCartaoNaoAut();						
-    mensagemInicial();
-	 
+  if(rfid != "timeout"){
+    if(httpCode == 200){
+      //String datainfo = (*payload)["data"];
+      saveCard(rfid);
+      digitalWrite(TRAVA, HIGH);
+      mensagemEntradaLiberada();
+      delay(1000);
+      digitalWrite(TRAVA, LOW);
+      mensagemPortaTravada();
+      
+      mensagemInicial();
+    }
+    else if(httpCode == 403){
+      mensagemCartaoNaoAut();
+      mensagemInicial();
+    }
+    //connection failed, try again
+    else if(httpCode == -11){
+      delay(1);
+      logCard(rfid, true);
+      mensagemInicial(); 
+    }
+    else if(httpCode == -1){
+      logCard(rfid, false);
+      mensagemInicial();
+    }
   }
 }
  
 String readCard(){
-  int tentativas = 0;
+  int attempts1 = 0;
+  int attempts2 = 0;
   bool erro = false;
-  while ( ! mfrc522.PICC_IsNewCardPresent()) {
+  while (attempts1 < 6000 && !mfrc522.PICC_IsNewCardPresent()) {
     conectar(); 
-    ledConnection();
+
+    //sync time with NTP server
+    getRTime();
+    //HTTPConect();
     debugIsOnTheTable();
+    //backup locally saved cards
     backupCards();
     delay(50);
+    attempts1++; 
     //return;
   }
   
   // Select one of the cards
-  while( tentativas < 40 && !mfrc522.PICC_ReadCardSerial()) {
+  while(attempts2 < 10 && !mfrc522.PICC_ReadCardSerial()) {
     conectar();
-    ledConnection();
-    Serial.println("DEU MERDA!!!");
     delay(50);
-    tentativas++;
+    attempts2++;
     //return;
   }
 
-  if (tentativas >= 40)
-  {
-    tentativas = 0;
-    erro = true;
+  //return if an error reading the card ocurred
+  if(attempts1 >= 6000){
+    attempts1 = 0;
+    return "timeout";
   }
-
-  if (erro)
+  else if(attempts2 >= 10) 
   {
-    erro = false;
-    return "";
+    attempts2 = 0;
+    return "error";
   }
+ 
   
- //Show UID on serial monitor
+  //Show UID on serial monitor
   String content = "";
   for (byte i = 0; i < mfrc522.uid.size; i++)
   {
@@ -212,13 +195,8 @@ String readCard(){
     content.concat(String(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " "));
     content.concat(String(mfrc522.uid.uidByte[i], HEX));
   }
-
-  Serial.println("\nMessage : ");
   content.toUpperCase();
-
   String card = content.substring(1);
-  Serial.println(card);
-  
   return card;
 }
 
@@ -230,10 +208,8 @@ void saveCard(String rfid){
     }
   }    
   if(already_saved == false){
-	  //hora = rtc.getTimeStr();
-    //data = rtc.getDateStr(FORMAT_SHORT);
-    Serial.print(formatTime(hora, data));
-    Serial.println(" Cartão salvo.");													  
+    Serial.print(getLTime());
+    Serial.println(" Cartão salvo.");                           
     saved_cards[num_card] = rfid;
     if(num_card < num_max - 1){
         num_card++;   
@@ -250,80 +226,67 @@ void saveCard(String rfid){
 }
 
 void debugIsOnTheTable(){
-						 
   uint32_t free = system_get_free_heap_size();
-  //hora = rtc.getTimeStr();
-  //Serial.println(hora.substring(6,8));
+  hora = getLHour();
+  data = getLDate();
   if(hora.substring(6,8) == "00"){
-    Serial.println("A20");
-  
-    //hora = rtc.getTimeStr();
-    //data = rtc.getDateStr(FORMAT_SHORT);
-    
-    Serial.println("A21");
-    Serial.print(formatTime(hora, data));
-
-    Serial.println("A22");
-
-    Serial.print(" ");
-    Serial.print(free);
+    Serial.print(getLTime());
+    Serial.print(" Free memory: ");
+    Serial.println(free);
   
   }
   //wake watchdog
-  yield();
+  delay(1);
   //ESP.wdtFeed();
 }
 
-
-void logCard(String rfid){
-  Serial.println(rfid);
+void logCard(String rfid, bool tryagain){
   bool stored = false;
+  bool already_saved = false;
   //check if the card was already locally registered
-  Serial.println("aqui1");
   for(int i = 0; i < num_max; i++){
-    Serial.println("aqui3");
-    if(saved_cards[i] == rfid){    
-      Serial.println("aqui5");
-	  
+    //if saved, store it in the logs
+    if(saved_cards[i] == rfid){
       logs[num_card_logs][0] = rfid;
+    
+      Serial.print(getLTime());
+      Serial.print(" Cartão salvo no log de acesso: ");
+      Serial.println(rfid);
       
-      //hora = rtc.getTimeStr();
-      //data = rtc.getDateStr(FORMAT_SHORT);
-      Serial.print(formatTime(hora, data));
-      Serial.println(" Cartão salvo no log de acesso.");
-      
-      logs[num_card_logs][1] = formatTime(hora, data);
-      												 
-      
+      logs[num_card_logs][1] = getLTime();
       digitalWrite(TRAVA, HIGH);
       mensagemEntradaLiberada();
-      delay(7000);
+      delay(1000);
       digitalWrite(TRAVA, LOW);
       mensagemPortaTravada();
-      mensagemInicial();
-      
+
+      //check array limits
       if(num_card_logs < num_max - 1){
-          Serial.println("aqui6");
           num_card_logs++;  
       }
       else num_card_logs = 0;
       if(logs_max < num_max - 1){
-          Serial.println("aqui7");
           logs_max++;  
       }
-   
-      Serial.println("aqui8");
-      
-     stored = true;
-     break;
+      stored = true;
+      break;
     }
   }
+  
+  Serial.println("\nLOGS DE ACESSO");
   for(int i = 0; i < logs_max; i++){
-    Serial.print("logs[i][0]");
+    Serial.print("logs[i][0]: ");
     Serial.println(logs[i][0]);
   }
-  if(stored == false){
-	  newAccess(rfid, true);					   
+  Serial.print("\n");
+  
+  //if not stored locally
+  if(stored == false && tryagain){
+    newAccess(rfid);
+  }
+  else if(stored == false && !tryagain){
+    mensagemCartaoNaoAut();
+    mensagemInicial();
   }
   stored = false;
 }
@@ -331,23 +294,14 @@ void logCard(String rfid){
 void backupCards(){
   int num_ns = 0;
   if((hora.substring(0, 5) == "00:00")  && WiFi.status() == WL_CONNECTED){
-    Serial.println("back1");
-	  //hora = rtc.getTimeStr();
-    //data = rtc.getDateStr(FORMAT_SHORT);
-    Serial.print(formatTime(hora, data));
+    Serial.print(getLTime());
     									
     while((logs_max > 0) || (num_ns > 0)){
-      Serial.print("nums: ");
-      Serial.println(num_card_logs);
-      Serial.println(num_ns);
-      Serial.println(logs_max);
       for(int i = 0; i<logs_max; i++){
-        Serial.println("back4");
         int httpCode;
         String rfid = logs[i][0];
         String datahora = logs[i][1];
         String message = createMsgUrlEnc(rfid, datahora);
-        Serial.println("back5");
         //connection to server
         httpCode = sendPOST(httpdestination, message);
         Serial.println("back6");
@@ -363,9 +317,7 @@ void backupCards(){
           if(num_ns > num_max - 1) num_ns = 0;
           else num_ns++;
         }
-        Serial.println("back7");
       } 
-      Serial.println("back8");
       logs_max = num_ns;
       num_ns = 0;
     }
@@ -384,15 +336,15 @@ int sendPOST(String httpdestination, String body){
 
       httpCode = http.POST(body);   //Send the request
       String pl = http.getString();                  //Get the response payload
-      char pl2[1000];
-      pl.toCharArray(pl2, 1000);
+      //char pl2[1000];
+      //pl.toCharArray(pl2, 1000);
 
 
-      JsonObject* x;
-      StaticJsonBuffer<1000> JSONBuffer;   //Memory pool
-      x = &(JSONBuffer.parseObject(pl2)); //Parse message
+      //JsonObject* x;
+      //StaticJsonBuffer<1000> JSONBuffer;   //Memory pool
+      //x = &(JSONBuffer.parseObject(pl2)); //Parse message
 
-      payload = x;
+      //payload = x;
 
       Serial.println(httpCode);   //Print HTTP return code
       Serial.println(pl);    //Print request response payload
@@ -413,10 +365,10 @@ String createMsgUrlEnc(String rfid, String datehour){
   return form;
 }
 
-String formatTime(String hora, String data){
+/*String formatTime(String hora, String data){
   String datahora = "20" + data.substring(6, 8) + "-" + data.substring(3,5) + "-" + data.substring(0,2)+ " " + hora;
   return datahora;
-}
+}*/
 
 //init msg
 void mensagemInicial() {
@@ -429,10 +381,7 @@ void mensagemInicial() {
 }
 
 void mensagemAcaoNegada(){
-  //hora = rtc.getTimeStr();
-  //data = rtc.getDateStr(FORMAT_SHORT);
-  Serial.print(formatTime(hora, data));
-  Serial.println(" Erro na leitura do cartao.");
+  Serial.print(getLTime());
   
   Serial.println(" Ação negada!");
 //  lcd.clear();
@@ -443,10 +392,8 @@ void mensagemAcaoNegada(){
 }
 
 
-void mensagemTagProblem(){
-	//hora = rtc.getTimeStr();
-	//data = rtc.getDateStr(FORMAT_SHORT);								  
-	Serial.print(formatTime(hora, data));
+void mensagemTagProblem(){							  
+	Serial.print(getLTime());
 	Serial.println(" Erro na leitura do cartao.");
   								   
 //  lcd.clear();
@@ -459,10 +406,7 @@ void mensagemTagProblem(){
 }
 
 void mensagemEntradaLiberada(){
-  //hora = rtc.getTimeStr();
-  //data = rtc.getDateStr(FORMAT_SHORT);
-  Serial.print(formatTime(hora, data));
-  Serial.println(" Erro na leitura do cartao.");
+  Serial.print(getLTime());
   					  
   Serial.println(" Entrada liberada.");
 //  lcd.clear();
@@ -470,7 +414,6 @@ void mensagemEntradaLiberada(){
 //  lcd.print("Ola!");
 //  lcd.setCursor(0, 1);
 //  lcd.print("Entrada liberada");
-  ledConnection();
   digitalWrite(LED_PR, LOW);
   digitalWrite(LED_PG, HIGH);
   beep();
@@ -478,10 +421,7 @@ void mensagemEntradaLiberada(){
 }
 
 void mensagemPortaTravada(){
-  //hora = rtc.getTimeStr();
-  //data = rtc.getDateStr(FORMAT_SHORT);
-  Serial.print(formatTime(hora, data));
-  Serial.println(" Erro na leitura do cartao.");
+  Serial.print(getLTime());
   
   Serial.println(" Porta Travada.");
 //  lcd.clear();
@@ -489,7 +429,6 @@ void mensagemPortaTravada(){
 //  lcd.print("Ola!");
 //  lcd.setCursor(0, 1);
 //  lcd.print("Porta Travada");
-  ledConnection();
   digitalWrite(LED_PR, HIGH);
   digitalWrite(LED_PG, LOW);
   beep();
@@ -497,10 +436,7 @@ void mensagemPortaTravada(){
 }
 
 void mensagemCartaoNaoAut(){
-  //hora = rtc.getTimeStr();
-  //data = rtc.getDateStr(FORMAT_SHORT);
-  Serial.print(formatTime(hora, data));
-  Serial.println(" Erro na leitura do cartao.");
+  Serial.print(getLTime());
   
   Serial.println(" Cartão não autorizado.");
 //  lcd.clear();
@@ -513,10 +449,7 @@ void mensagemCartaoNaoAut(){
 }
 
 void mensagemConectado(){
-  //hora = rtc.getTimeStr();
-  //data = rtc.getDateStr(FORMAT_SHORT);
-  Serial.print(formatTime(hora, data));
-  Serial.println(" Erro na leitura do cartao.");
+  Serial.print(getLTime());
   
   Serial.println(F(" Conectado."));
 //  lcd.clear();
@@ -526,10 +459,7 @@ void mensagemConectado(){
 }
 
 void mensagemNaoConectado(){
-  //hora = rtc.getTimeStr();
-  //data = rtc.getDateStr(FORMAT_SHORT);
-  Serial.print(formatTime(hora, data));
-  Serial.println(" Erro na leitura do cartao.");
+  Serial.print(getLTime());
   
   Serial.println(F(" Nao conectado."));
   //lcd.clear();
@@ -557,64 +487,24 @@ void longBeep(){
   tone(255, 1);
 }
 
-void ledConnection(){
-  // put your main code here, to run repeatedly:
-  if(WiFi.status() == WL_CONNECTED){
-    digitalWrite(LED_WON, HIGH);
-    digitalWrite(LED_WOFF, LOW);
-    digitalWrite(LED_PR, HIGH);
-    digitalWrite(LED_PG, LOW);
-  }
-  //delay(1000);
-  else{
-    digitalWrite(LED_WON, LOW);
-    digitalWrite(LED_WOFF, HIGH);
-    digitalWrite(LED_PR, HIGH);
-    digitalWrite(LED_PG, LOW);
-   // delay(1000);
-  }
-}
 
 void conectar()
 {
-  /*
-  int status = WiFi.status();
-  if (status != WL_CONNECTED) {
-    if (conectado)
-    {
-      conectado = false;
-      mensagemNaoConectado();
-      WiFi.disconnect();
-      WiFi.begin(ssid, pass);
-    }
-    
-    
-    if (tentativas > 1200)
-    {
-      mensagemNaoConectado();
-      WiFi.disconnect();
-      WiFi.begin(ssid, pass);
-      tentativas = 0;
-    }
-
-    tentativas++;
-  }
-  else if (!conectado && WiFi.status() == WL_CONNECTED)
-  {
-    mensagemConectado();
-    mensagemInicial();
-    conectado = true;
-  }*/
+ 
   if(WiFi.status() == WL_CONNECTED){
     if(attempts != 0){
-      Serial.println("CON");
+      mensagemConectado();
+      digitalWrite(LED_WON, HIGH);
+      digitalWrite(LED_WOFF, LOW);
       attempts = 0;
     }
   }
   else if (attempts == 0) {
     WiFi.disconnect();
     WiFi.begin(ssid, pass);
-    Serial.println("NOT");
+    mensagemNaoConectado();
+    digitalWrite(LED_WON, LOW);
+    digitalWrite(LED_WOFF, HIGH);
     delay(1000);
     attempts++;
   }
@@ -628,6 +518,61 @@ void conectar()
   delay(1000);
 }
 
+void getRTime(){
+  if(WiFi.status() == WL_CONNECTED && hora.substring(0,1) == "00"){
+     configTzTime(TZ_INFO, NTP_SERVER);
+  } 
+}
+
+String getLHour(){
+  getLocalTime(&timeinfo);
+  String hr, mn, sc;
+  String localh;
+  if(timeinfo.tm_hour < 10) hr = "0" + String(timeinfo.tm_hour);
+  else hr = String(timeinfo.tm_hour);
+  
+  if(timeinfo.tm_min < 10) mn = "0" + String(timeinfo.tm_min); 
+  else mn = String(timeinfo.tm_min); 
+
+  if(timeinfo.tm_sec < 10) sc = "0" + String(timeinfo.tm_sec);
+  else sc = String(timeinfo.tm_sec);
+ 
+  
+  localh = hr +":"+ mn +":"+ sc;
+  return localh;  
+}
+
+String getLDate(){
+  String d, m, y;
+  String locald;
+  if(timeinfo.tm_mday < 10) d = "0" + String(timeinfo.tm_mday);
+  else d = String(timeinfo.tm_mday);
+
+  if(timeinfo.tm_mon < 10) m = "0" + String(1+timeinfo.tm_mon);
+  else m = String(1+timeinfo.tm_mon);
+  
+  if(timeinfo.tm_year < 10) y = "0" + String(1900+timeinfo.tm_year);
+  else y = String(1900+timeinfo.tm_year);
+ 
+  locald = y +"-"+ m +"-"+ d; 
+  return locald;
+}
+
+String getLTime(){
+  getLocalTime(&timeinfo);
+  return getLDate() + " " + getLHour();
+}
+
+/*
+void HTTPConect(){
+  http.begin(httpdestination);
+  http.setTimeout(50);
+  http.setReuse(true);
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");  //Specify content-type header
+  http.addHeader("Connection", "Keep-Alive");  //Specify content-type header
+  http.addHeader("Cache-Control", "no-cache");
+}
+*/
 
     
 
