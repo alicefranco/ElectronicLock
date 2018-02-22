@@ -42,6 +42,8 @@ bool start = false;
 int channel = 0;
 int resolution = 8;
 
+HTTPClient http;
+
 //init
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
 
@@ -75,6 +77,7 @@ void setup() {
   pinMode(LED_PR, OUTPUT);
   pinMode(LED_PG, OUTPUT);
 
+  digitalWrite(LED_WOFF, HIGH);
   digitalWrite(LED_PR, HIGH);
   
   Serial.begin(9600);    // Initialize serial communications
@@ -87,7 +90,7 @@ void setup() {
   WiFi.begin(ssid, pass);
   mensagemInicial();
   
-  //HTTPConect();
+  HTTPConect();
 }
 
 void loop() {
@@ -125,7 +128,7 @@ void newAccess(String rfid){
       saveCard(rfid);
       digitalWrite(TRAVA, HIGH);
       mensagemEntradaLiberada();
-      delay(1000);
+      delay(10);
       digitalWrite(TRAVA, LOW);
       mensagemPortaTravada();
       
@@ -157,7 +160,7 @@ String readCard(){
 
     //sync time with NTP server
     getRTime();
-    //HTTPConect();
+    HTTPConect();
     debugIsOnTheTable();
     //backup locally saved cards
     backupCards();
@@ -256,7 +259,7 @@ void logCard(String rfid, bool tryagain){
       logs[num_card_logs][1] = getLTime();
       digitalWrite(TRAVA, HIGH);
       mensagemEntradaLiberada();
-      delay(1000);
+      delay(10);
       digitalWrite(TRAVA, LOW);
       mensagemPortaTravada();
 
@@ -328,7 +331,7 @@ int sendPOST(String httpdestination, String body){
   int httpCode;
   if(WiFi.status()== WL_CONNECTED){   //Check WiFi connection status
 
-      HTTPClient http;    //Declare object of class HTTPClient
+      //HTTPClient http;    //Declare object of class HTTPClient
 
       http.begin(httpdestination);
       http.addHeader("Content-Type", "application/x-www-form-urlencoded");  //Specify content-type header
@@ -563,7 +566,7 @@ String getLTime(){
   return getLDate() + " " + getLHour();
 }
 
-/*
+
 void HTTPConect(){
   http.begin(httpdestination);
   http.setTimeout(50);
@@ -572,7 +575,7 @@ void HTTPConect(){
   http.addHeader("Connection", "Keep-Alive");  //Specify content-type header
   http.addHeader("Cache-Control", "no-cache");
 }
-*/
+
 
     
 
