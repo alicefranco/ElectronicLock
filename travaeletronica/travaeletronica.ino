@@ -38,11 +38,10 @@ String hora = "00:00:00";
 String data = "01.01.18";
 int attempts = 0;
 bool start = false;
+String horaBackup = "00";
 
 int channel = 0;
 int resolution = 8;
-
-HTTPClient http;
 
 //init
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
@@ -222,10 +221,12 @@ void saveCard(String rfid){
   else already_saved = false;
   
   //debug
+  Serial.println("\nCARTÕES SALVOS");
   for(int i = 0; i < num_max; i++){
     Serial.print("saved_cards[i]: ");
     Serial.println(saved_cards[i]);
   }   
+  Serial.print("\n");
 }
 
 void debugIsOnTheTable(){
@@ -296,7 +297,7 @@ void logCard(String rfid, bool tryagain){
 
 void backupCards(){
   int num_ns = 0;
-  if((hora.substring(0, 5) == "00:00")  && WiFi.status() == WL_CONNECTED){
+  if((hora.substring(0, 5) == horaBackup)  && WiFi.status() == WL_CONNECTED){
     Serial.print(getLTime());
     									
     while((logs_max > 0) || (num_ns > 0)){
