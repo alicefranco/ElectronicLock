@@ -90,7 +90,7 @@ void setup() {
   WiFi.begin(ssid, pass);
   mensagemInicial();
   
-  HTTPConect();
+  //HTTPConect();
 }
 
 void loop() {
@@ -160,7 +160,7 @@ String readCard(){
 
     //sync time with NTP server
     getRTime();
-    HTTPConect();
+    //HTTPConect();
     debugIsOnTheTable();
     //backup locally saved cards
     backupCards();
@@ -331,7 +331,7 @@ int sendPOST(String httpdestination, String body){
   int httpCode;
   if(WiFi.status()== WL_CONNECTED){   //Check WiFi connection status
 
-      //HTTPClient http;    //Declare object of class HTTPClient
+      HTTPClient http;    //Declare object of class HTTPClient
 
       http.begin(httpdestination);
       http.addHeader("Content-Type", "application/x-www-form-urlencoded");  //Specify content-type header
@@ -566,7 +566,7 @@ String getLTime(){
   return getLDate() + " " + getLHour();
 }
 
-
+/*
 void HTTPConect(){
   http.begin(httpdestination);
   http.setTimeout(50);
@@ -574,7 +574,7 @@ void HTTPConect(){
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");  //Specify content-type header
   http.addHeader("Connection", "Keep-Alive");  //Specify content-type header
   http.addHeader("Cache-Control", "no-cache");
-}
+}*/
 
 
     
